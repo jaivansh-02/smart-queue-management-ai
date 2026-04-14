@@ -678,28 +678,34 @@ def verify_otp(identifier, otp_input, purpose):
     conn.commit(); conn.close()
     return 'ok', row['temp_data'] or ''
 
-def send_otp_email(email, otp, lang):
-    try:
-        import smtplib
-        from email.mime.text import MIMEText
-        import os
+def send_otp_email(to_email, otp, lang):
+    import smtplib
+    from email.mime.text import MIMEText
+    import os
 
+    try:
         sender = os.getenv("GMAIL_ADDRESS")
         password = os.getenv("GMAIL_APP_PASS")
 
+        print("DEBUG EMAIL:", sender)
+        print("DEBUG PASS:", password)
+
         msg = MIMEText(f"Your OTP is {otp}")
-        msg["Subject"] = "OTP Verification"
-        msg["From"] = sender
-        msg["To"] = email
+        msg['Subject'] = "OTP Verification"
+        msg['From'] = sender
+        msg['To'] = to_email
 
         server = smtplib.SMTP("smtp.gmail.com", 587)
         server.starttls()
         server.login(sender, password)
-        server.sendmail(sender, email, msg.as_string())
+
+        server.send_message(msg)
         server.quit()
 
+        print("✅ OTP SENT")
+
     except Exception as e:
-        print("SMTP FAILED:", e)
+        print("❌ EMAIL ERROR:", e)
 
 # ─────────────────────────────── ERROR PAGES ─────────────────────────────────
 @app.errorhandler(404)
