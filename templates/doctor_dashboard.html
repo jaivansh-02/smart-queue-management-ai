@@ -1,0 +1,96 @@
+{% extends "base.html" %}{% block title %}Doctor Dashboard{% endblock %}
+{% set lang = session.get('lang','en') %}
+{% block nav_links %}<a href="/doctor/add_record" class="btn-acc">+ {{ t('add_record', lang) }}</a><a href="/display">📺 {{ t('display_board', lang) }}</a><a href="/doctor/logout" class="btn-nav">{{ t('nav_logout', lang) }}</a>{% endblock %}
+{% block mobile_nav %}<a href="/doctor/dashboard" onclick="closeMenu()">{{ t('doctor_dashboard', lang) }}</a><a href="/doctor/add_record" onclick="closeMenu()">+ {{ t('add_record', lang) }}</a><a href="/display" onclick="closeMenu()">📺 {{ t('display_board', lang) }}</a><a href="/doctor/logout" onclick="closeMenu()" class="btn-nav">{{ t('nav_logout', lang) }}</a>{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="20">{% endblock %}
+{% block content %}
+<div class="dashboard">
+  <div class="dash-header">
+    <div><h1>{{ t('doctor_dashboard', lang) }}</h1><p class="welcome">{{ session.doctor_name }} · {{ session.doctor_dept }}</p></div>
+    <div class="dash-actions">
+      <a href="/doctor/add_record" class="btn btn-accent btn-sm">+ {{ t('add_record', lang) }}</a>
+      <form method="POST" action="/doctor/call_next" style="margin:0;"><button type="submit" class="btn btn-accent btn-sm">📢 {{ t('call_next', lang) }}</button></form>
+    </div>
+  </div>
+  {% with m=get_flashed_messages(with_categories=true) %}{% for c,msg in m %}<div class="alert alert-{{ 'success' if c=='success' else ('info' if c=='info' else 'error') }}">{{ '✅' if c=='success' else ('ℹ️' if c=='info' else '⚠️') }} {{ msg }}</div>{% endfor %}{% endwith %}
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="si si-blue">⏳</div><div><div class="sv">{{ waiting|length }}</div><div class="sl">{{ t('waiting', lang) }}</div></div></div>
+    <div class="stat-card"><div class="si si-orange">🔔</div><div><div class="sv">{{ '1' if current else '0' }}</div><div class="sl">{{ t('in_session', lang) }}</div></div></div>
+    <div class="stat-card"><div class="si si-green">✅</div><div><div class="sv">{{ completed_today }}</div><div class="sl">{{ t('done_today', lang) }}</div></div></div>
+    <div class="stat-card"><div class="si si-ai">⏱</div><div><div class="sv">~{{ waiting|length*5 }}{{ t('mins', lang) }}</div><div class="sl">{{ t('total_wait', lang) }}</div></div></div>
+  </div>
+
+  <div class="insights-box">
+    <div class="ai-lbl">🤖 {{ t('ai_queue_insights', lang) }} <span class="ai-badge">✨ Gemini</span></div>
+    <div class="itext" id="itext" style="color:var(--muted);font-style:italic;">{{ t('click_for_insights', lang) }}</div>
+    <button class="btn btn-ai btn-sm lb" onclick="loadInsights(this)">✨ {{ t('get_insights', lang) }}</button>
+  </div>
+
+  {% if current %}
+  <div class="cur-patient">
+    <div>
+      <div style="font-size:.75rem;opacity:.8;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">{{ t('currently_attending', lang) }}</div>
+      <div class="cur-t-big">#{{ current.token_number }}</div>
+      <div style="margin-top:5px;font-size:.95rem;">{{ current.patient_name }} &nbsp;·&nbsp; {{ current.age or '?' }} {{ t('years', lang) }} &nbsp;·&nbsp; {{ current.gender or '?' }}</div>
+      {% if current.blood_group %}<div style="margin-top:4px;font-size:.82rem;opacity:.8;">{{ current.blood_group }} &nbsp;·&nbsp; {{ current.symptom or '' }}</div>{% endif %}
+    </div>
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+      <a href="/doctor/add_record?pid={{ current.patient_id if current.patient_id else '' }}" class="btn btn-success btn-sm">📋 {{ t('add_record', lang) }}</a>
+      <form method="POST" action="/doctor/complete_current" style="margin:0;"><button type="submit" class="btn btn-success btn-sm">✅ {{ t('mark_complete', lang) }}</button></form>
+      <form method="POST" action="/doctor/call_next" style="margin:0;"><button type="submit" class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);">⏭ {{ t('done_and_next', lang) }}</button></form>
+    </div>
+  </div>
+  {% else %}
+  <div class="card" style="border-left:4px solid var(--bdr);">
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+      <div style="font-size:1.8rem;">💤</div>
+      <div><div style="font-weight:600;color:var(--muted);">{{ t('no_session', lang) }}</div><div style="font-size:.82rem;color:var(--muted);margin-top:2px;">{{ t('click_call_next', lang) }}</div></div>
+      <form method="POST" action="/doctor/call_next" style="margin-left:auto;"><button type="submit" class="btn btn-accent">📢 {{ t('call_next', lang) }}</button></form>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if todays_appts %}
+  <div class="card">
+    <div class="card-title">📅 {{ t('todays_appointments', lang) }}</div>
+    <div class="tw"><table><thead><tr><th>{{ t('time', lang) }}</th><th>{{ t('patient', lang) }}</th><th>Type</th><th>{{ t('notes', lang) }}</th></tr></thead>
+    <tbody>{% for a in todays_appts %}<tr><td><strong>{{ a.time }}</strong></td><td>{{ a.patient_name }}</td><td>{{ a.appointment_type }}</td><td style="font-size:.81rem;color:var(--muted);">{{ a.notes or '—' }}</td></tr>{% endfor %}</tbody></table></div>
+  </div>{% endif %}
+
+  <div class="card">
+    <div class="card-title">⏳ {{ t('waiting_queue', lang) }} ({{ waiting|length }} {{ t('patients_waiting', lang) }})</div>
+    {% if waiting %}
+    <div class="tw"><table><thead><tr><th>#</th><th>{{ t('patient', lang) }}</th><th>{{ t('age', lang) }}/{{ t('gender', lang) }}</th><th>Symptom</th><th>{{ t('status', lang) }}</th><th>{{ t('est_wait', lang) }}</th></tr></thead>
+    <tbody>{% for i,tk in enumerate(waiting) %}
+      <tr {% if i==0 %}style="background:#fff8f5;"{% endif %}>
+        <td><strong style="color:var(--primary);">#{{ tk.token_number }}</strong></td>
+        <td>{{ tk.patient_name }}</td>
+        <td style="font-size:.82rem;color:var(--muted);">{{ tk.age or '?' }} / {{ tk.gender or '?' }}</td>
+        <td style="font-size:.82rem;color:var(--muted);">{{ tk.symptom or '—' }}</td>
+        <td><span class="badge badge-waiting">⏳ {{ t('waiting', lang) }}</span></td>
+        <td style="font-size:.82rem;color:var(--muted);">~{{ i*5 }}{{ t('mins', lang) }}</td>
+      </tr>{% endfor %}</tbody></table></div>
+    {% else %}<div class="empty-state"><div class="ei">🎉</div><h3>{{ t('queue_empty', lang) }}</h3></div>{% endif %}
+  </div>
+
+  {% if recent_records %}
+  <div class="card">
+    <div class="card-title">📋 {{ t('recent_records', lang) }}</div>
+    <div class="tw"><table><thead><tr><th>{{ t('date', lang) }}</th><th>{{ t('patient', lang) }}</th><th>{{ t('diagnosis', lang) }}</th><th>{{ t('medicines', lang) }}</th></tr></thead>
+    <tbody>{% for r in recent_records %}<tr>
+      <td>{{ r.visit_date }}</td><td><strong>{{ r.patient_name }}</strong></td>
+      <td>{{ r.diagnosis }}</td><td style="font-size:.81rem;color:var(--muted);">{{ r.medicines_prescribed }}</td>
+    </tr>{% endfor %}</tbody></table></div>
+  </div>{% endif %}
+</div>
+{% block scripts %}<script>
+var refreshLabel = '🔄 {{ t("refresh_insights", lang) }}';
+function loadInsights(btn){
+  btn.textContent='⏳…';btn.disabled=true;
+  fetch('/api/ai/queue_insights').then(r=>r.json()).then(d=>{
+    document.getElementById('itext').innerHTML=(d.insight||'No insights.').replace(/\n/g,'<br>');
+    btn.textContent=refreshLabel;btn.disabled=false;
+  }).catch(()=>{document.getElementById('itext').textContent='Error. Check API key.';btn.textContent='Retry';btn.disabled=false;});}
+</script>{% endblock %}
+{% endblock %}

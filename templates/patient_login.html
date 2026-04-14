@@ -1,0 +1,51 @@
+{% extends "base.html" %}{% block title %}Patient Login{% endblock %}
+{% block nav_links %}<a href="/patient/register">Register</a><a href="/doctor/login" class="btn-nav">Doctor</a>{% endblock %}
+{% block mobile_nav %}<a href="/" onclick="closeMenu()">Home</a><a href="/patient/register" onclick="closeMenu()">Register</a><a href="/doctor/login" onclick="closeMenu()" class="btn-nav">Doctor</a>{% endblock %}
+{% block content %}
+<div class="page-center">
+  <div class="auth-card">
+    <div class="ch"><div class="ic ic-blue">🧑‍⚕️</div>
+      <h2>{{ t('patient_login', session.get('lang','en')) }}</h2>
+      <p class="sub">{{ t('welcome_back', session.get('lang','en')) }}</p>
+    </div>
+    {% with m=get_flashed_messages(with_categories=true) %}{% for c,msg in m %}
+    <div class="alert alert-{{ 'success' if c=='success' else 'error' }}">{{ '✅' if c=='success' else '⚠️' }} {{ msg }}</div>
+    {% endfor %}{% endwith %}
+
+    <!-- Email + Password Login -->
+    <form method="POST">
+      <div class="fg">
+        <label>{{ t('email', session.get('lang','en')) }}</label>
+        <input type="email" name="email" placeholder="you@email.com" required autocomplete="email">
+      </div>
+      <div class="fg">
+        <label>{{ t('password', session.get('lang','en')) }}</label>
+        <input type="password" name="password" required autocomplete="current-password">
+      </div>
+      <!-- Forgot Password link -->
+      <div style="text-align:right;margin-top:-4px;margin-bottom:14px;">
+        <a href="/patient/forgot_password" style="font-size:.82rem;color:var(--ai);font-weight:600;text-decoration:none;">
+          🔑 {{ t('forgot_password', session.get('lang','en')) }}?
+        </a>
+      </div>
+      <button type="submit" class="btn btn-primary">{{ t('nav_login', session.get('lang','en')) }} →</button>
+    </form>
+
+    <!-- Divider -->
+    <div style="display:flex;align-items:center;gap:10px;margin:18px 0;">
+      <div style="flex:1;height:1px;background:var(--bdr);"></div>
+      <span style="font-size:.82rem;color:var(--muted);font-weight:600;">{{ t('or_divider', session.get('lang','en')) }}</span>
+      <div style="flex:1;height:1px;background:var(--bdr);"></div>
+    </div>
+
+    <!-- OTP Login -->
+    <a href="/patient/otp_login" class="btn btn-ai" style="width:100%;margin-bottom:14px;justify-content:center;">
+      📱 {{ t('login_with_otp', session.get('lang','en')) }}
+    </a>
+
+    <div class="alert alert-info" style="font-size:.8rem;">
+      💡 <strong>Sample:</strong> <code>rajesh1@gmail.com</code> / <code>patient123</code>
+    </div>
+    <div class="ff">{{ t('no_account', session.get('lang','en')) }} <a href="/patient/register">{{ t('nav_register', session.get('lang','en')) }}</a></div>
+  </div>
+</div>{% endblock %}

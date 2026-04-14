@@ -1,0 +1,45 @@
+{% extends "base.html" %}{% block title %}My Profile{% endblock %}
+{% set lang = session.get('lang','en') %}
+{% block nav_links %}<a href="/patient/dashboard">{{ t('patient_dashboard', lang) }}</a><a href="/patient/logout" class="btn-nav">{{ t('nav_logout', lang) }}</a>{% endblock %}
+{% block mobile_nav %}<a href="/patient/dashboard" onclick="closeMenu()">{{ t('patient_dashboard', lang) }}</a><a href="/patient/logout" onclick="closeMenu()" class="btn-nav">{{ t('nav_logout', lang) }}</a>{% endblock %}
+{% block content %}
+<div class="page-center">
+  <div class="auth-card" style="max-width:520px;">
+    <div class="ch"><div class="ic ic-blue">👤</div><h2>{{ t('my_profile', lang) }}</h2><p class="sub">{{ t('save_changes', lang) }}</p></div>
+    {% with m=get_flashed_messages(with_categories=true) %}{% for c,msg in m %}<div class="alert alert-{{ 'success' if c=='success' else 'error' }}">{{ '✅' if c=='success' else '⚠️' }} {{ msg }}</div>{% endfor %}{% endwith %}
+    <form method="POST">
+      <div class="fg"><label>{{ t('full_name', lang) }}</label><input type="text" name="name" value="{{ patient.name }}" required></div>
+      <div class="fg"><label>{{ t('email', lang) }}</label><input type="email" value="{{ patient.email }}" disabled style="background:var(--sur2);color:var(--muted)"></div>
+      <div class="fr">
+        <div class="fg"><label>{{ t('age', lang) }}</label><input type="number" name="age" value="{{ patient.age or '' }}" min="1" max="120" inputmode="numeric"></div>
+        <div class="fg"><label>{{ t('gender', lang) }}</label>
+          <select name="gender">
+            <option value="">{{ t('select', lang) }}</option>
+            {% for g in ['Male','Female','Other'] %}<option {{ 'selected' if patient.gender==g }}>{{ g }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label>{{ t('phone', lang) }}</label><input type="tel" name="phone" value="{{ patient.phone or '' }}" inputmode="tel"></div>
+        <div class="fg"><label>{{ t('blood_group', lang) }}</label>
+          <select name="blood_group">
+            <option value="">{{ t('select', lang) }}</option>
+            {% for b in ['A+','A-','B+','B-','O+','O-','AB+','AB-'] %}<option {{ 'selected' if patient.blood_group==b }}>{{ b }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="fg"><label>{{ t('city', lang) }}</label><input type="text" name="city" value="{{ patient.city or '' }}"></div>
+      <div class="fg" style="border:2px solid #e9d5ff;border-radius:10px;padding:14px;background:var(--ai2);">
+        <label style="color:var(--ai);">🌐 {{ t('notification_lang', lang) }}</label>
+        <select name="lang" style="margin-top:6px;border-color:#e9d5ff;">
+          {% for code, name in LANGUAGES.items() %}
+          <option value="{{ code }}" {{ 'selected' if (patient.lang or 'en')==code }}>{{ name }}</option>
+          {% endfor %}
+        </select>
+        <small style="color:var(--muted);font-size:.78rem;margin-top:6px;display:block;">📧 {{ t('email_notif_lang', lang) }}</small>
+      </div>
+      <button type="submit" class="btn btn-primary">{{ t('save_changes', lang) }} ✓</button>
+    </form>
+    <div class="ff"><a href="/patient/dashboard">← {{ t('back', lang) }}</a></div>
+  </div>
+</div>{% endblock %}

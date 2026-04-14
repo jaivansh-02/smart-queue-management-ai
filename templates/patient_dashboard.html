@@ -1,0 +1,294 @@
+{% extends "base.html" %}{% block title %}Patient Dashboard{% endblock %}
+{% set lang = session.get('lang','en') %}
+{% block nav_links %}
+<a href="/patient/symptom_checker" class="btn-ai">🔬 {{ t('ai_symptom_checker', lang) }}</a>
+<a href="/patient/chat">💬 {{ t('medibot_chat', lang) }}</a>
+<a href="/patient/profile">👤 {{ t('my_profile', lang) }}</a>
+<a href="/patient/logout" class="btn-nav">{{ t('nav_logout', lang) }}</a>
+{% endblock %}
+{% block mobile_nav %}
+<a href="/patient/dashboard" onclick="closeMenu()">🏠 {{ t('patient_dashboard', lang) }}</a>
+<a href="/patient/symptom_checker" onclick="closeMenu()">🔬 {{ t('ai_symptom_checker', lang) }}</a>
+<a href="/patient/chat" onclick="closeMenu()">💬 {{ t('medibot_chat', lang) }}</a>
+<a href="/patient/book_appointment" onclick="closeMenu()">📅 {{ t('book_appointment', lang) }}</a>
+<a href="/patient/profile" onclick="closeMenu()">👤 {{ t('my_profile', lang) }}</a>
+<a href="/display" onclick="closeMenu()">📺 {{ t('display_board', lang) }}</a>
+<a href="/patient/logout" onclick="closeMenu()" class="btn-nav">{{ t('nav_logout', lang) }}</a>
+{% endblock %}
+{% block content %}
+<div class="dashboard">
+  <div class="dash-header">
+    <div><h1>{{ t('patient_dashboard', lang) }}</h1><p class="welcome">{{ t('welcome_back', lang) }}, {{ session.patient_name }} 👋</p></div>
+    <div class="dash-actions">
+      <a href="/patient/book_appointment" class="btn btn-accent btn-sm">📅 {{ t('book_appointment', lang) }}</a>
+      <a href="/display" class="btn btn-outline btn-sm">📺 {{ t('display_board', lang) }}</a>
+    </div>
+  </div>
+
+  {% with m=get_flashed_messages(with_categories=true) %}{% for c,msg in m %}
+  <div class="alert alert-{{ 'success' if c=='success' else ('info' if c=='info' else 'error') }}">{{ '✅' if c=='success' else ('ℹ️' if c=='info' else '⚠️') }} {{ msg }}</div>
+  {% endfor %}{% endwith %}
+
+  <!-- AI Quick Actions -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:.8rem;margin-bottom:1.2rem;">
+    <a href="/patient/symptom_checker" style="text-decoration:none;">
+      <div class="card" style="border:2px solid #e9d5ff;background:linear-gradient(135deg,var(--ai2),#fdf4ff);margin-bottom:0;cursor:pointer;transition:transform .2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+        <div style="font-size:1.6rem;margin-bottom:.4rem;">🔬</div>
+        <div style="font-weight:700;color:var(--ai);font-size:.95rem;">{{ t('ai_symptom_checker', lang) }}</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-top:3px;">{{ t('symptoms_ai_desc', lang) }}</div>
+        <span class="ai-badge" style="margin-top:8px;display:inline-flex;">✨ Gemini AI</span>
+      </div>
+    </a>
+    <a href="/patient/chat" style="text-decoration:none;">
+      <div class="card" style="border:2px solid #e9d5ff;background:linear-gradient(135deg,#fdf4ff,var(--ai2));margin-bottom:0;cursor:pointer;transition:transform .2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+        <div style="font-size:1.6rem;margin-bottom:.4rem;">💬</div>
+        <div style="font-weight:700;color:var(--ai);font-size:.95rem;">{{ t('medibot_chat', lang) }}</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-top:3px;">{{ t('medibot_desc', lang) }}</div>
+        <span class="ai-badge" style="margin-top:8px;display:inline-flex;">✨ Gemini AI</span>
+      </div>
+    </a>
+  </div>
+
+  {% if queue_info %}
+  <div class="token-banner">
+    <div style="flex:1;">
+      <div class="token-lbl">{{ t('your_token', lang) }}</div>
+      <div class="token-big">#{{ queue_info.token.token_number }}</div>
+      <div class="token-meta">{{ queue_info.token.department }} · {{ queue_info.token.doctor_name }}</div>
+      <!-- Token generated time -->
+      <div style="margin-top:8px;font-size:.78rem;opacity:.75;display:flex;align-items:center;gap:6px;">
+        🕐 {{ t('generated', lang) if t('generated',lang) != 'generated' else 'Generated' }}: <strong>{{ queue_info.generated }}</strong>
+      </div>
+      <button class="token-voice-btn" onclick="sqSpeakToken()" style="margin-top:.5rem;">
+        🔊 Read aloud
+      </button>
+      <div style="margin-top:4px;">
+        {% if queue_info.token.status=='waiting' %}<span class="badge badge-waiting">⏳ {{ t('waiting', lang) }}</span>
+        {% else %}<span class="badge" style="background:rgba(255,255,255,.2);color:#fff;font-size:.85rem;">🔔 {{ t('called', lang) }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="token-stats">
+      <div class="tstat"><div class="val">{{ queue_info.position }}</div><div class="lbl">{{ t('position', lang) }}</div></div>
+      <div class="tstat"><div class="val">~{{ queue_info.wait_time }}{{ t('mins', lang) }}</div><div class="lbl">{{ t('est_wait', lang) }}</div></div>
+      <!-- Exact meeting time -->
+      <div class="tstat" style="background:rgba(46,158,107,.25);min-width:130px;">
+        <div style="font-size:.68rem;opacity:.8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">📅 {{ t('meet_time', lang) if t('meet_time',lang) != 'meet_time' else 'Meet at' }}</div>
+        <div style="font-size:.82rem;font-weight:700;line-height:1.3;">{{ queue_info.meet_time }}</div>
+      </div>
+    </div>
+  </div>
+  {% if queue_info.token.status=='called' %}
+  <div class="alert alert-info" style="font-size:.95rem;font-weight:600;">🔔 {{ t('called', lang) }} — {{ queue_info.token.doctor_name }}</div>
+  {% endif %}
+  {% else %}
+
+  <!-- ── Post-Token Feedback Card ─────────────────────────────────────── -->
+  {% if session.get('show_feedback') %}
+  <div id="sq-token-feedback" class="sq-feedback-card">
+    <button class="sq-close" onclick="document.getElementById('sq-token-feedback').style.display='none'">✕</button>
+    <div style="font-family:'Outfit',sans-serif;font-weight:700;font-size:.95rem;margin-bottom:.7rem;">
+      ⭐ Rate Our Service
+    </div>
+    <p style="font-size:.83rem;color:var(--muted);margin-bottom:.8rem;">How was your experience getting a token?</p>
+    <div class="sq-star-rating" id="sq-token-stars" data-rating="0" style="margin-bottom:.8rem;">
+      <span class="sq-star" data-v="1">★</span>
+      <span class="sq-star" data-v="2">★</span>
+      <span class="sq-star" data-v="3">★</span>
+      <span class="sq-star" data-v="4">★</span>
+      <span class="sq-star" data-v="5">★</span>
+    </div>
+    <textarea id="sq-token-comment" placeholder="Optional comment…"
+              style="width:100%;resize:vertical;min-height:55px;font-size:.83rem;margin-bottom:.7rem;"></textarea>
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+      <button class="btn btn-accent btn-sm" onclick="sqSubmitTokenFeedback()">✅ Submit</button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('sq-token-feedback').style.display='none'">Later</button>
+    </div>
+    <div id="sq-token-fb-sent" style="display:none;color:var(--ok);font-size:.83rem;font-weight:600;margin-top:.5rem;">
+      ✅ Thank you!
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-title">🎫 {{ t('get_token', lang) }}</div>
+    <div id="s1">
+      <p style="font-size:.85rem;color:var(--muted);margin-bottom:.9rem;">{{ t('step1_dept', lang) }} &nbsp;<a href="/patient/symptom_checker" style="color:var(--ai);font-size:.8rem;">💡 {{ t('use_ai_dept', lang) }}</a></p>
+      <div class="dept-grid">{% for d in departments %}<button class="dept-btn" onclick="selDept('{{ d }}')">{{ d }}</button>{% endfor %}</div>
+    </div>
+    <div id="s2" style="display:none;">
+      <p style="font-size:.85rem;color:var(--muted);margin-bottom:.9rem;">{{ t('step2_doctor', lang) }} — <strong id="dlbl"></strong> &nbsp;<a href="#" onclick="resetDept();return false;" style="color:var(--primary);font-size:.8rem;">{{ t('change_dept', lang) }}</a></p>
+      <div id="doclist" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,180px),1fr));gap:.6rem;margin-bottom:1.1rem;"></div>
+    </div>
+    <div id="s3" style="display:none;margin-top:.8rem;">
+      <div class="alert alert-info">✅ {{ t('selected', lang) }}: <strong id="clbl"></strong></div>
+      <form method="POST" action="/patient/generate_token"><input type="hidden" name="doctor_id" id="did_input">
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+          <button type="submit" class="btn btn-accent">🎫 {{ t('confirm_token', lang) }}</button>
+          <button type="button" onclick="resetAll()" class="btn btn-outline">✕ {{ t('reset', lang) }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="showTab('doctors')">👨‍⚕️ {{ t('find_doctor', lang) }}</button>
+      <button class="tab-btn" onclick="showTab('history')">🎫 {{ t('token_history', lang) }}</button>
+      <button class="tab-btn" onclick="showTab('appts')">📅 {{ t('appointments', lang) }}</button>
+      <button class="tab-btn" onclick="showTab('records')">📋 {{ t('medical_records', lang) }}</button>
+    </div>
+
+    <div class="tab-pane active" id="tab-doctors">
+      <div style="display:flex;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap;">
+        <input type="text" id="dsearch" placeholder="🔍 {{ t('search_doctor', lang) }}" style="flex:1;min-width:180px;" oninput="searchDocs()">
+        <select id="dfilter" onchange="searchDocs()" style="width:auto;min-width:150px;">
+          <option value="">{{ t('all_departments', lang) }}</option>{% for d in departments %}<option>{{ d }}</option>{% endfor %}
+        </select>
+      </div>
+      <div id="doc-results" class="tw">
+        <table><thead><tr><th>{{ t('doctor', lang) }}</th><th>{{ t('department', lang) }}</th><th>{{ t('qualification', lang) }}</th><th>{{ t('experience', lang) }}</th></tr></thead>
+        <tbody id="doc-tbody">
+          {% for d in doctors %}
+          <tr><td><strong>{{ d.name }}</strong></td><td>{{ d.department }}</td><td style="font-size:.82rem;color:var(--muted);">{{ d.qualification or '—' }}</td><td>{{ d.experience_years or '—' }} {{ t('years', lang) }}</td></tr>
+          {% endfor %}
+        </tbody></table>
+      </div>
+    </div>
+
+    <div class="tab-pane" id="tab-history">
+      {% if token_hist %}
+      <div class="tw"><table><thead><tr><th>#</th><th>{{ t('doctor', lang) }}</th><th>{{ t('department', lang) }}</th><th>{{ t('status', lang) }}</th><th>🕐 {{ t('token_gen_time', lang) }}</th></tr></thead>
+      <tbody>{% for tk in token_hist %}
+        <tr>
+          <td><strong>#{{ tk.token_number }}</strong></td>
+          <td>{{ tk.doctor_name }}</td>
+          <td>{{ tk.department }}</td>
+          <td><span class="badge badge-{{ tk.status }}">{{ tk.status|title }}</span></td>
+          <td style="font-size:.82rem;color:var(--muted);">
+            {{ tk.gen_str if tk.gen_str else '—' }}<br>
+            <span style="font-size:.77rem;opacity:.8;">📅 {{ tk.appt_date_str }}</span>
+          </td>
+        </tr>
+      {% endfor %}</tbody></table></div>
+      {% else %}<div class="empty-state"><div class="ei">🎫</div><h3>{{ t('no_tokens', lang) }}</h3></div>{% endif %}
+    </div>
+
+    <div class="tab-pane" id="tab-appts">
+      <div style="margin-bottom:1rem;"><a href="/patient/book_appointment" class="btn btn-accent btn-sm">{{ t('book_new_appt', lang) }}</a></div>
+      {% if my_appts %}
+      <div class="tw"><table><thead><tr><th>{{ t('doctor', lang) }}</th><th>Type</th><th>{{ t('date', lang) }}</th><th>{{ t('time', lang) }}</th><th>{{ t('status', lang) }}</th><th>Action</th></tr></thead>
+      <tbody>{% for a in my_appts %}
+        <tr><td><strong>{{ a.doctor_name }}</strong></td><td>{{ a.appointment_type }}</td>
+        <td>{{ a.date }}</td><td>{{ a.time }}</td>
+        <td><span class="badge badge-{{ 'scheduled' if a.status=='Scheduled' else 'cancelled' if a.status=='Cancelled' else 'completed' }}">{{ a.status }}</span></td>
+        <td>{% if a.status=='Scheduled' %}<form method="POST" action="/patient/cancel_appointment/{{ a.id }}" style="margin:0;"><button type="submit" class="btn btn-danger btn-xs" onclick="return confirm('{{ t('confirm_cancel', lang) }}')">{{ t('cancel', lang) }}</button></form>{% endif %}</td></tr>
+      {% endfor %}</tbody></table></div>
+      {% else %}<div class="empty-state"><div class="ei">📅</div><h3>{{ t('no_appointments', lang) }}</h3><p><a href="/patient/book_appointment">{{ t('book_appointment', lang) }}</a></p></div>{% endif %}
+    </div>
+
+    <div class="tab-pane" id="tab-records">
+      {% if my_records %}
+      <div class="tw"><table><thead><tr><th>{{ t('date', lang) }}</th><th>{{ t('doctor', lang) }}</th><th>{{ t('diagnosis', lang) }}</th><th>{{ t('medicines', lang) }}</th><th>{{ t('followup', lang) }}</th></tr></thead>
+      <tbody>{% for r in my_records %}
+        <tr><td>{{ r.visit_date }}</td><td><strong>{{ r.doctor_name }}</strong></td>
+        <td>{{ r.diagnosis }}</td>
+        <td style="font-size:.8rem;color:var(--muted);">{{ r.medicines_prescribed }}</td>
+        <td>{{ r.followup_date or '—' }}</td></tr>
+      {% endfor %}</tbody></table></div>
+      {% else %}<div class="empty-state"><div class="ei">📋</div><h3>{{ t('no_records', lang) }}</h3></div>{% endif %}
+    </div>
+  </div>
+</div>
+
+{% block scripts %}
+<script>
+var sd='';
+function selDept(dept){
+  sd=dept; document.getElementById('dlbl').textContent=dept;
+  document.getElementById('s2').style.display='block'; document.getElementById('s3').style.display='none';
+  document.querySelectorAll('#s1 .dept-btn').forEach(b=>b.classList.toggle('active',b.textContent.trim()===dept));
+  fetch('/api/doctors_by_dept?dept='+encodeURIComponent(dept)).then(r=>r.json()).then(docs=>{
+    var c=document.getElementById('doclist'); c.innerHTML='';
+    if(!docs.length){c.innerHTML='<p style="color:var(--muted)">No doctors found.</p>';return;}
+    docs.forEach(d=>{var b=document.createElement('button');b.type='button';b.className='dept-btn';b.textContent=d.name;b.onclick=()=>selDoc(d.id,d.name);c.appendChild(b);});
+  });
+}
+function selDoc(id,name){
+  document.getElementById('did_input').value=id;
+  document.getElementById('clbl').textContent=name+' ('+sd+')';
+  document.getElementById('s3').style.display='block';
+  document.querySelectorAll('#doclist .dept-btn').forEach(b=>b.classList.toggle('active',b.textContent.trim()===name));
+}
+function resetDept(){sd='';document.getElementById('s2').style.display='none';document.getElementById('s3').style.display='none';document.querySelectorAll('.dept-btn').forEach(b=>b.classList.remove('active'));}
+function resetAll(){resetDept();}
+function showTab(id){
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['doctors','history','appts','records'][i]===id));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+id));
+}
+/* ── Voice System ─────────────────────────────────────────────────────── */
+var SQ_PATIENT_NAME = '{{ session.patient_name|default("") }}';
+var SQ_TOKEN_NUM    = '{% if queue_info %}{{ queue_info.token.token_number }}{% endif %}';
+var SQ_DOCTOR_NAME  = '{% if queue_info %}{{ queue_info.token.doctor_name }}{% endif %}';
+var SQ_MEET_TIME    = '{% if queue_info %}{{ queue_info.meet_time }}{% endif %}';
+var SQ_IS_CALLED    = '{% if queue_info %}{{ queue_info.token.status }}{% endif %}' === 'called';
+var SQ_LANG_KEY     = '{{ lang }}';
+
+document.addEventListener('DOMContentLoaded', function(){
+  if (SQ_TOKEN_NUM) {
+    var announced = sessionStorage.getItem('sq_token_announced');
+    if (announced !== SQ_TOKEN_NUM) {
+      sessionStorage.setItem('sq_token_announced', SQ_TOKEN_NUM);
+      
+      // Clean data for better speech
+      var doctorName = SQ_DOCTOR_NAME.replace(/^Dr\.?\s+/i, '');
+      var meetingTime = SQ_MEET_TIME.replace(/ IST$/i, '');
+      
+      var message = "Your token has been generated. Please visit Doctor " + doctorName + " at " + meetingTime;
+      
+      // Delay slightly to ensure UI is ready and welcome voice (if any) is finishing
+      var delay = sessionStorage.getItem('sq_welcomed_this_load') ? 500 : 2500;
+      setTimeout(function(){
+        speak(message);
+      }, delay);
+      sessionStorage.setItem('sq_welcomed_this_load', '1');
+    }
+  }
+});
+
+function sqSpeakToken() {
+  if (!SQ_TOKEN_NUM) return;
+  var msg = 'Your token is number ' + SQ_TOKEN_NUM;
+  if (SQ_DOCTOR_NAME) msg += '. Please visit Doctor ' + SQ_DOCTOR_NAME;
+  if (SQ_MEET_TIME)   msg += '. Estimated meeting time: ' + SQ_MEET_TIME.replace(' IST','');
+  speak(msg, SQ_LANG_KEY);
+}
+
+function sqSubmitTokenFeedback() {
+  var stars   = document.getElementById('sq-token-stars');
+  var rating  = parseInt(stars ? stars.getAttribute('data-rating') : '0', 10);
+  var comment = document.getElementById('sq-token-comment').value.trim();
+  sqSubmitFeedback(rating, comment, 'token_dashboard');
+  var sent = document.getElementById('sq-token-fb-sent');
+  if (sent) { sent.style.display='block'; }
+  setTimeout(function(){
+    var card = document.getElementById('sq-token-feedback');
+    if (card) card.style.display='none';
+  }, 1800);
+}
+
+var dTimer;
+function searchDocs(){
+  clearTimeout(dTimer);
+  dTimer=setTimeout(()=>{
+    var q=document.getElementById('dsearch').value;
+    var dept=document.getElementById('dfilter').value;
+    fetch('/api/search_doctors?q='+encodeURIComponent(q)+'&dept='+encodeURIComponent(dept)).then(r=>r.json()).then(docs=>{
+      var tb=document.getElementById('doc-tbody');
+      tb.innerHTML=docs.length?docs.map(d=>`<tr><td><strong>${d.name}</strong></td><td>${d.department}</td><td style="font-size:.82rem;color:var(--muted)">${d.qualification||'—'}</td><td>${d.experience_years||'—'} yrs</td></tr>`).join(''):'<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:2rem;">No doctors found</td></tr>';
+    });
+  },300);
+}
+</script>
+{% endblock %}
+{% endblock %}

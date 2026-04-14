@@ -1,0 +1,103 @@
+{% extends "base.html" %}{% block title %}Verify OTP{% endblock %}
+{% block nav_links %}<a href="/patient/login">Login</a><a href="/patient/register" class="btn-nav">Register</a>{% endblock %}
+{% block mobile_nav %}<a href="/patient/login" onclick="closeMenu()">Login</a><a href="/patient/register" onclick="closeMenu()" class="btn-nav">Register</a>{% endblock %}
+{% block content %}
+<div class="page-center">
+  <div class="auth-card">
+
+    <!-- Step indicator -->
+    <div style="display:flex;justify-content:center;align-items:center;gap:0;margin-bottom:1.8rem;">
+      <div style="display:flex;align-items:center;">
+        <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--pl));color:white;display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;">1</div>
+        <div style="font-size:.72rem;font-weight:600;color:var(--muted);margin:0 6px;">Details</div>
+        <div style="width:30px;height:2px;background:var(--primary);margin:0 4px;"></div>
+      </div>
+      <div style="display:flex;align-items:center;">
+        <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--ai),var(--ail));color:white;display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;">2</div>
+        <div style="font-size:.72rem;font-weight:600;color:var(--ai);margin:0 6px;">Verify Email</div>
+        <div style="width:30px;height:2px;background:var(--bdr);margin:0 4px;"></div>
+      </div>
+      <div style="display:flex;align-items:center;">
+        <div style="width:32px;height:32px;border-radius:50%;background:var(--sur2);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;">3</div>
+        <div style="font-size:.72rem;font-weight:600;color:var(--muted);margin:0 6px;">Done</div>
+      </div>
+    </div>
+
+    <div class="ch">
+      <div class="ic ic-ai">📧</div>
+      <h2>Verify Your Email</h2>
+      <p class="sub">OTP sent to <strong>{{ email }}</strong></p>
+    </div>
+
+    {% with m=get_flashed_messages(with_categories=true) %}{% for c,msg in m %}
+    <div class="alert alert-{{ 'success' if c=='success' else ('ai' if c=='info' else 'error') }}">
+      {{ '✅' if c=='success' else ('📬' if c=='info' else '⚠️') }} {{ msg }}
+    </div>{% endfor %}{% endwith %}
+
+    <div class="alert alert-ai">
+      📬 A 6-digit OTP has been sent to your email.<br>
+      <small style="opacity:.8;">⏱ Valid for 10 minutes — check spam folder too.</small>
+    </div>
+
+    <!-- OTP Input Form -->
+    <form method="POST">
+      <input type="hidden" name="action" value="verify">
+      <div class="fg">
+        <label style="text-align:center;display:block;">Enter 6-digit OTP</label>
+        <input type="text" name="otp"
+               placeholder="● ● ● ● ● ●"
+               maxlength="6"
+               inputmode="numeric"
+               pattern="[0-9]{6}"
+               style="font-size:2rem;letter-spacing:12px;text-align:center;font-weight:800;padding:14px;"
+               autofocus
+               autocomplete="one-time-code"
+               required>
+      </div>
+      <button type="submit" class="btn btn-ai" style="width:100%;padding:13px;font-size:1rem;">
+        ✅ Verify & Create Account
+      </button>
+    </form>
+
+    <!-- Resend OTP -->
+    <form method="POST" style="margin-top:.8rem;">
+      <input type="hidden" name="action" value="resend">
+      <button type="submit" class="btn btn-outline" style="width:100%;">
+        🔄 Resend OTP
+      </button>
+    </form>
+
+    <div class="ff" style="margin-top:1.2rem;">
+      <a href="/patient/register">← Back to Registration</a>
+    </div>
+
+    <!-- Timer -->
+    <div style="text-align:center;margin-top:1rem;font-size:.8rem;color:var(--muted);">
+      ⏱ OTP expires in: <span id="timer" style="font-weight:700;color:var(--accent);">10:00</span>
+    </div>
+  </div>
+</div>
+
+{% block scripts %}
+<script>
+// Countdown timer
+var secs = 600;
+var tmr  = setInterval(function(){
+  secs--;
+  var m = Math.floor(secs/60);
+  var s = secs % 60;
+  var el = document.getElementById('timer');
+  if(el) el.textContent = m + ':' + (s<10?'0':'') + s;
+  if(el) el.style.color = secs < 60 ? '#d94040' : 'var(--accent)';
+  if(secs <= 0){ clearInterval(tmr); if(el) el.textContent = 'Expired'; }
+}, 1000);
+
+// Auto-submit when 6 digits entered
+document.querySelector('input[name="otp"]').addEventListener('input', function(){
+  if(this.value.length === 6){
+    this.closest('form').submit();
+  }
+});
+</script>
+{% endblock %}
+{% endblock %}

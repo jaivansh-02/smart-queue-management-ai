@@ -1,0 +1,284 @@
+{% extends "base.html" %}{% block title %}MediBot Chat{% endblock %}
+{% set lang = session.get('lang','en') %}
+{% block nav_links %}
+<a href="/patient/dashboard">{{ t('patient_dashboard', lang) }}</a>
+<a href="/patient/symptom_checker" class="btn-ai">🔬 {{ t('ai_symptom_checker', lang) }}</a>
+{% endblock %}
+{% block mobile_nav %}
+<a href="/patient/dashboard" onclick="closeMenu()">{{ t('patient_dashboard', lang) }}</a>
+<a href="/patient/symptom_checker" onclick="closeMenu()">{{ t('ai_symptom_checker', lang) }}</a>
+{% endblock %}
+{% block content %}
+<div class="chat-page">
+
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.3rem;flex-wrap:wrap;gap:.8rem;">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:.3rem;">
+        <h1>💬 {{ t('medibot_chat', lang) }}</h1>
+        <span class="ai-badge">✨ SmartQueue AI</span>
+        <span style="font-size:.72rem;background:rgba(14,140,95,.12);color:var(--ok);padding:2px 9px;border-radius:100px;font-weight:600;">🔊 Voice enabled</span>
+      </div>
+      <p style="color:var(--muted);font-size:.87rem;">{{ t('medibot_desc', lang) }}</p>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center;">
+      <button class="btn btn-outline btn-sm" onclick="stopSpeaking()" title="Stop speaking">⏹ Stop</button>
+      <button class="btn btn-outline btn-sm" onclick="clearChat()">🗑 {{ t('reset', lang) }}</button>
+    </div>
+  </div>
+
+  <div class="alert alert-ai" style="margin-bottom:1rem;">⚠️ {{ t('ai_disclaimer', lang) }}</div>
+
+  <!-- ── Prescription / Medicine Analyzer ──────────────────────────────── -->
+  <div class="card" style="margin-bottom:1.2rem;border:2px solid #e9d5ff;background:linear-gradient(135deg,var(--ai2,#f5f3ff),#fdf4ff);">
+    <div class="card-title ai-t" style="margin-bottom:.7rem;">💊 Prescription &amp; Medicine Analyzer</div>
+    <p style="font-size:.83rem;color:var(--muted);margin-bottom:.9rem;">
+      📸 <strong>Upload your prescription</strong> — or type any medicine name to learn how &amp; when to take it.
+    </p>
+
+    <!-- Medicine name input with voice -->
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.9rem;align-items:flex-end;">
+      <div style="flex:1;min-width:180px;">
+        <label style="font-size:.75rem;font-weight:600;color:var(--muted);display:block;margin-bottom:4px;">Medicine Name</label>
+        <div style="display:flex;gap:.4rem;align-items:center;">
+          <input type="text" id="med-name"
+                 placeholder="e.g. Paracetamol, Metformin…"
+                 onkeydown="if(event.key==='Enter')analyzeMedicine()"
+                 style="flex:1;">
+          <button class="btn-mic" id="med-mic-btn" title="Speak medicine name">🎤</button>
+        </div>
+      </div>
+      <button class="btn btn-ai btn-sm" onclick="analyzeMedicine()" style="white-space:nowrap;">💊 Explain</button>
+    </div>
+
+    <!-- Image upload -->
+    <div id="drop-zone"
+         style="border:2px dashed var(--bdr);border-radius:var(--rs);padding:1.2rem;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;background:var(--sur);"
+         onclick="document.getElementById('presc-file').click()"
+         ondragover="event.preventDefault();this.style.borderColor='var(--ail,#a855f7)';this.style.background='var(--ai2,#f5f3ff)'"
+         ondragleave="this.style.borderColor='var(--bdr)';this.style.background='var(--sur)'"
+         ondrop="handleDrop(event)">
+      <div style="font-size:2rem;margin-bottom:.4rem;">📋</div>
+      <div style="font-size:.84rem;color:var(--muted);font-weight:500;">Click or drag prescription image</div>
+      <div style="font-size:.73rem;color:var(--muted);margin-top:3px;">JPG · PNG · WEBP · Max 5MB</div>
+    </div>
+    <input type="file" id="presc-file" accept="image/*" capture="environment" style="display:none" onchange="previewImage(this)">
+
+    <div id="presc-preview" style="display:none;margin-top:.8rem;text-align:center;">
+      <img id="presc-img" alt="Prescription preview" style="max-height:180px;max-width:100%;border-radius:10px;border:1px solid var(--bdr);object-fit:contain;">
+      <div style="margin-top:.6rem;display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-ai btn-sm" onclick="uploadAnalyze()">🔬 Analyze</button>
+        <button class="btn btn-outline btn-sm" onclick="clearPresc()">✕ Remove</button>
+      </div>
+    </div>
+    <div id="presc-loading" style="display:none;text-align:center;padding:.9rem;">
+      <div class="spinner" style="margin:0 auto .5rem;"></div>
+      <span style="color:var(--ai,#7c3aed);font-size:.85rem;font-weight:600;">Analyzing…</span>
+    </div>
+    <div id="presc-result" style="display:none;margin-top:.9rem;background:var(--sur);border-radius:var(--rs);padding:1rem 1.1rem;border-left:4px solid var(--ai,#7c3aed);font-size:.86rem;line-height:1.75;"></div>
+  </div>
+
+  <!-- ── Chat Box ─────────────────────────────────────────────────────────── -->
+  <div class="chat-box">
+    <div class="chat-msgs" id="msgs">
+      <div class="msg assistant">
+        <div class="av">🤖</div>
+        <div class="bubble">
+          👋 Hi! I'm <strong>MediBot</strong>. I can help with:<br>
+          • Health questions &amp; hospital guidance<br>
+          • Medicine information<br>
+          • Prescription analysis<br><br>
+          Ask me anything — or use 🎤 to speak!
+        </div>
+      </div>
+      {% for h in history %}
+      <div class="msg {{ h.role }}">
+        <div class="av">{{ '👤' if h.role=='user' else '🤖' }}</div>
+        <div>
+          <div class="bubble">
+            {% if h.role=='user' %}{{ h.message|replace('\n','<br>')|safe }}{% else %}{{ h.message|safe }}{% endif %}
+          </div>
+          {% if h.role=='assistant' %}
+          <button class="msg-speak" onclick="speak(this.parentNode.querySelector('.bubble').innerText,'{{ lang }}')" title="Read aloud">🔊</button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      <div class="msg assistant typing" id="typing">
+        <div class="av">🤖</div>
+        <div class="dots"><span></span><span></span><span></span></div>
+      </div>
+    </div>
+    <div class="chat-ir">
+      <input type="text" class="chat-in" id="inp"
+             placeholder="{{ t('medibot_desc', lang) }}… (Enter)"
+             onkeydown="if(event.key==='Enter')send()" autocomplete="off">
+      <!-- mic button injected by sq_voice.js -->
+      <button class="btn btn-ai btn-sm" onclick="send()">Send →</button>
+    </div>
+  </div>
+
+  <!-- Quick questions -->
+  <div style="margin-top:.9rem;">
+    <p style="font-size:.75rem;color:var(--muted);margin-bottom:.5rem;">💡 Quick:</p>
+    <div style="display:flex;flex-wrap:wrap;gap:.4rem;">
+      {% for q in ['Which dept for chest pain?','Explain blood pressure','What is ECG?',
+                   'Side effects of Paracetamol?','When to take antibiotics?',
+                   'What is Cardiology?','Explain diabetes','What is blood pressure?'] %}
+      <button class="dept-btn" style="padding:4px 11px;font-size:.77rem;" onclick="qa('{{ q }}')">{{ q }}</button>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% block scripts %}
+<script>
+var _selectedFile = null;
+var CHAT_LANG = '{{ lang }}';
+
+/* ── Chat ─────────────────────────────────────────────────────────────────── */
+function scrollBottom(){ var m=document.getElementById('msgs'); m.scrollTop=m.scrollHeight; }
+
+function addMsg(role, html) {
+  var t   = document.getElementById('typing');
+  var wrap= document.createElement('div');
+  wrap.className = 'msg ' + role;
+
+  var av  = document.createElement('div');
+  av.className = 'av';
+  av.textContent = role === 'user' ? '👤' : '🤖';
+
+  var inner = document.createElement('div');
+
+  var bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML = role === 'user' ? html.replace(/\n/g,'<br>') : html;
+  inner.appendChild(bubble);
+
+  /* Speak button on bot messages */
+  if (role === 'assistant') {
+    var spk = document.createElement('button');
+    spk.className = 'msg-speak';
+    spk.title = 'Read aloud';
+    spk.innerHTML = '🔊';
+    spk.onclick = function(){ speak(bubble.innerText, CHAT_LANG); };
+    inner.appendChild(spk);
+  }
+
+  wrap.appendChild(av);
+  wrap.appendChild(inner);
+  document.getElementById('msgs').insertBefore(wrap, t);
+  scrollBottom();
+  return bubble;
+}
+
+function send() {
+  var inp = document.getElementById('inp');
+  var msg = inp.value.trim();
+  if (!msg) return;
+  addMsg('user', msg); inp.value = '';
+  document.getElementById('typing').style.display = 'flex'; scrollBottom();
+
+  fetch('/api/ai/chat', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({message: msg})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    document.getElementById('typing').style.display = 'none';
+    var reply = d.reply || d.error || 'Sorry, an error occurred.';
+    addMsg('assistant', reply);
+    /* Auto-speak bot response — speak() cancels any previous speech first */
+    var plain = reply.replace(/<[^>]*>/g,' ').replace(/[•#*]/g,'').replace(/\s+/g,' ').trim();
+    speak(plain, CHAT_LANG);
+  })
+  .catch(function(){
+    document.getElementById('typing').style.display = 'none';
+    addMsg('assistant', 'Connection error. Please try again.');
+  });
+}
+
+function qa(q) { document.getElementById('inp').value = q; send(); }
+
+function clearChat() {
+  if (!confirm('Clear all chat history?')) return;
+  fetch('/api/ai/clear_chat', {method:'POST'}).then(function(){ location.reload(); });
+}
+
+scrollBottom();
+
+/* ── Wire mic button for medicine name ──────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', function(){
+  var medBtn = document.getElementById('med-mic-btn');
+  var medInp = document.getElementById('med-name');
+  if (medBtn && medInp) {
+    medBtn.addEventListener('click', function(){
+      if (typeof _sqRecognizing !== 'undefined' && _sqRecognizing) {
+        sqStopListening();
+        medBtn.classList.remove('listening');
+        medBtn.innerHTML = '🎤';
+        return;
+      }
+      medBtn.classList.add('listening');
+      medBtn.innerHTML = '🔴';
+      sqStartListening(
+        function(text){ medBtn.classList.remove('listening'); medBtn.innerHTML='🎤'; medInp.value=text; },
+        function(err){ medBtn.classList.remove('listening'); medBtn.innerHTML='🎤'; console.warn(err); },
+        CHAT_LANG
+      );
+    });
+  }
+});
+
+/* ── Prescription / Medicine ──────────────────────────────────────────────── */
+function analyzeMedicine(){
+  var name = document.getElementById('med-name').value.trim();
+  if (!name){ alert('Please type a medicine name first.'); return; }
+  showLoading(true);
+  var fd = new FormData(); fd.append('medicine_name', name);
+  fetch('/api/ai/analyze_prescription',{method:'POST',body:fd})
+  .then(function(r){return r.json();}).then(function(d){
+    showLoading(false);
+    var reply = d.reply || 'Could not analyze.';
+    showResult(reply);
+    addMsg('user', '💊 Explain: ' + name);
+    var ab = addMsg('assistant', reply);
+    speak(ab.innerText, CHAT_LANG);
+    scrollBottom();
+    document.getElementById('med-name').value = '';
+  })
+  .catch(function(){ showLoading(false); showResult('⚠️ Connection error.'); });
+}
+
+function previewImage(input){
+  if(!input.files||!input.files[0]) return;
+  _selectedFile = input.files[0];
+  if(_selectedFile.size > 5*1024*1024){ alert('File too large (max 5MB).'); _selectedFile=null; return; }
+  var r = new FileReader();
+  r.onload = function(e){ document.getElementById('presc-img').src=e.target.result; document.getElementById('presc-preview').style.display='block'; document.getElementById('presc-result').style.display='none'; };
+  r.readAsDataURL(_selectedFile);
+}
+function handleDrop(e){
+  e.preventDefault();
+  var dz=document.getElementById('drop-zone'); dz.style.borderColor='var(--bdr)'; dz.style.background='var(--sur)';
+  var f=e.dataTransfer&&e.dataTransfer.files[0];
+  if(f){ var dt=new DataTransfer(); dt.items.add(f); var inp=document.getElementById('presc-file'); inp.files=dt.files; previewImage(inp); }
+}
+function uploadAnalyze(){
+  if(!_selectedFile){ alert('Select image first.'); return; }
+  showLoading(true); document.getElementById('presc-preview').style.display='none';
+  var fd=new FormData(); fd.append('prescription_image',_selectedFile);
+  fetch('/api/ai/analyze_prescription',{method:'POST',body:fd})
+  .then(function(r){return r.json();}).then(function(d){
+    showLoading(false); var reply=d.reply||'Could not analyze.';
+    showResult(reply); addMsg('user','📋 Prescription image uploaded.');
+    var ab=addMsg('assistant',reply); speak(ab.innerText, CHAT_LANG); scrollBottom();
+  })
+  .catch(function(){ showLoading(false); showResult('⚠️ Connection error.'); });
+}
+function clearPresc(){_selectedFile=null;document.getElementById('presc-file').value='';document.getElementById('presc-preview').style.display='none';document.getElementById('presc-result').style.display='none';}
+function showLoading(on){ document.getElementById('presc-loading').style.display=on?'block':'none'; if(on)document.getElementById('presc-result').style.display='none'; }
+function showResult(html){ var el=document.getElementById('presc-result'); el.innerHTML=html; el.style.display='block'; }
+</script>
+{% endblock %}
+{% endblock %}

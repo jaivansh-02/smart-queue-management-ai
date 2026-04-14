@@ -1,0 +1,126 @@
+{% extends "base.html" %}{% block title %}Admin Dashboard{% endblock %}
+{% block nav_links %}<a href="/admin/logout" class="btn-nav">Logout Admin</a>{% endblock %}
+{% block mobile_nav %}<a href="/admin/dashboard" onclick="closeMenu()">Dashboard</a><a href="/admin/logout" onclick="closeMenu()" class="btn-nav">Logout</a>{% endblock %}
+{% block content %}
+<div class="dashboard">
+  <div class="dash-header">
+    <div><h1>Admin Panel</h1><p class="welcome">Hospital Management Overview</p></div>
+    <a href="/admin/logout" class="btn btn-outline btn-sm">Logout</a>
+  </div>
+  {% with m=get_flashed_messages(with_categories=true) %}{% for c,msg in m %}
+  <div class="alert alert-{{ 'success' if c=='success' else ('info' if c=='info' else 'error') }}">
+    {{ '✅' if c=='success' else ('ℹ️' if c=='info' else '⚠️') }} {{ msg }}
+  </div>
+  {% endfor %}{% endwith %}
+
+  <!-- Quick Stats -->
+  <div class="admin-grid">
+    <div class="quick-stat"><div class="si si-blue" style="font-size:1.5rem;">👨‍⚕️</div><div><div class="qs-val">{{ stats.total_doctors }}</div><div class="qs-lbl">Approved Doctors</div></div></div>
+    {% if stats.pending_doctors > 0 %}
+    <div class="quick-stat" style="border-left-color:#f59e0b;"><div class="si" style="font-size:1.5rem;background:#fffbeb;">⏳</div><div><div class="qs-val" style="color:#d97706;">{{ stats.pending_doctors }}</div><div class="qs-lbl">Pending Approval</div></div></div>
+    {% endif %}
+    <div class="quick-stat orange"><div class="si si-orange" style="font-size:1.5rem;">🧑‍⚕️</div><div><div class="qs-val" style="color:var(--accent);">{{ stats.total_patients }}</div><div class="qs-lbl">Total Patients</div></div></div>
+    <div class="quick-stat green"><div class="si si-green" style="font-size:1.5rem;">✅</div><div><div class="qs-val" style="color:var(--ok);">{{ stats.completed_today }}</div><div class="qs-lbl">Completed Today</div></div></div>
+    <div class="quick-stat ai"><div class="si si-ai" style="font-size:1.5rem;">⏳</div><div><div class="qs-val" style="color:var(--ai);">{{ stats.waiting }}</div><div class="qs-lbl">Currently Waiting</div></div></div>
+    <div class="quick-stat red"><div class="si si-red" style="font-size:1.5rem;">🎫</div><div><div class="qs-val" style="color:var(--err);">{{ stats.total_tokens }}</div><div class="qs-lbl">Total Tokens</div></div></div>
+    <div class="quick-stat"><div class="si si-dark" style="font-size:1.5rem;">📅</div><div><div class="qs-val">{{ stats.appointments }}</div><div class="qs-lbl">Scheduled Appts</div></div></div>
+  </div>
+
+  <!-- ── PENDING DOCTOR APPROVALS ──────────────────────────────────────── -->
+  {% if pending_doctors %}
+  <div class="card" style="border-left:4px solid #f59e0b;">
+    <div class="card-title" style="color:#d97706;">⏳ Pending Doctor Approvals ({{ pending_doctors|length }})</div>
+    <div class="alert alert-warning">
+      ⚠️ These doctors have registered and are awaiting your approval before they can log in.
+    </div>
+    <div class="tw"><table><thead><tr><th>Name</th><th>Email</th><th>Department</th><th>Action</th></tr></thead>
+    <tbody>{% for d in pending_doctors %}
+      <tr>
+        <td><strong>{{ d.name }}</strong></td>
+        <td style="font-size:.82rem;color:var(--muted);">{{ d.email }}</td>
+        <td>{{ d.department }}</td>
+        <td style="display:flex;gap:.5rem;flex-wrap:wrap;padding:8px 12px;">
+          <form method="POST" action="/admin/approve_doctor/{{ d.id }}" style="margin:0;">
+            <button type="submit" class="btn btn-success btn-xs">✅ Approve</button>
+          </form>
+          <form method="POST" action="/admin/reject_doctor/{{ d.id }}" style="margin:0;" onsubmit="return confirm('Reject Dr. {{ d.name }}?')">
+            <button type="submit" class="btn btn-danger btn-xs">❌ Reject</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}</tbody></table></div>
+  </div>
+  {% endif %}
+
+  <!-- Dept Queue Status -->
+  <div class="card">
+    <div class="card-title">📊 Live Queue by Department</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,170px),1fr));gap:.7rem;">
+      {% for dept in departments %}
+      {% set dc = dept_stats | selectattr('department','equalto',dept) | first %}
+      <div style="background:var(--sur2);border-radius:var(--rs);padding:.9rem;text-align:center;border:1px solid var(--bdr);">
+        <div style="font-size:.76rem;color:var(--muted);margin-bottom:4px;">{{ dept }}</div>
+        <div style="font-size:1.6rem;font-weight:800;color:var(--primary);">{{ dc.cnt if dc else 0 }}</div>
+        <div style="font-size:.72rem;color:var(--muted);">waiting</div>
+      </div>{% endfor %}
+    </div>
+  </div>
+
+  <!-- Doctors Table -->
+  <div class="card">
+    <div class="card-title">👨‍⚕️ All Doctors ({{ doctors|length }})</div>
+    <div class="tw"><table><thead><tr><th>Name</th><th>Department</th><th>Qualification</th><th>Status</th><th>Total Tokens</th><th>Action</th></tr></thead>
+    <tbody>{% for d in doctors %}
+      <tr>
+        <td><strong>{{ d.name }}</strong></td>
+        <td>{{ d.department }}</td>
+        <td style="font-size:.81rem;color:var(--muted);">{{ d.qualification or '—' }}</td>
+        <td>
+          {% if d.status == 'approved' %}<span class="badge badge-completed">✅ Approved</span>
+          {% elif d.status == 'pending' %}<span class="badge badge-waiting">⏳ Pending</span>
+          {% else %}<span class="badge badge-cancelled">❌ Rejected</span>{% endif %}
+        </td>
+        <td><span class="badge badge-scheduled">{{ d.total_tokens }}</span></td>
+        <td style="display:flex;gap:.4rem;flex-wrap:wrap;padding:8px 12px;">
+          {% if d.status == 'pending' %}
+          <form method="POST" action="/admin/approve_doctor/{{ d.id }}" style="margin:0;"><button type="submit" class="btn btn-success btn-xs">✅</button></form>
+          <form method="POST" action="/admin/reject_doctor/{{ d.id }}" style="margin:0;"><button type="submit" class="btn btn-danger btn-xs">❌</button></form>
+          {% elif d.status == 'rejected' %}
+          <form method="POST" action="/admin/approve_doctor/{{ d.id }}" style="margin:0;"><button type="submit" class="btn btn-success btn-xs">✅ Re-approve</button></form>
+          {% endif %}
+          <form method="POST" action="/admin/delete_doctor/{{ d.id }}" style="margin:0;" onsubmit="return confirm('Delete Dr. {{ d.name }}? This cannot be undone.')">
+            <button type="submit" class="btn btn-danger btn-xs">Delete</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}</tbody></table></div>
+  </div>
+
+  <!-- Patients Table -->
+  <div class="card">
+    <div class="card-title">🧑‍⚕️ Patients (showing first 50)</div>
+    <div class="tw"><table><thead><tr><th>Name</th><th>Email</th><th>Age</th><th>City</th><th>Blood</th><th>Action</th></tr></thead>
+    <tbody>{% for p in patients %}
+      <tr><td><strong>{{ p.name }}</strong></td>
+          <td style="font-size:.82rem;color:var(--muted);">{{ p.email }}</td>
+          <td>{{ p.age or '—' }}</td><td>{{ p.city or '—' }}</td>
+          <td>{{ p.blood_group or '—' }}</td>
+          <td><form method="POST" action="/admin/delete_patient/{{ p.id }}" style="margin:0;" onsubmit="return confirm('Delete patient {{ p.name }}?')">
+            <button type="submit" class="btn btn-danger btn-xs">Delete</button></form></td>
+      </tr>
+    {% endfor %}</tbody></table></div>
+  </div>
+
+  <!-- Recent Tokens -->
+  <div class="card">
+    <div class="card-title">🎫 Recent Tokens (last 20)</div>
+    <div class="tw"><table><thead><tr><th>#</th><th>Patient</th><th>Doctor</th><th>Dept</th><th>Status</th><th>Time</th></tr></thead>
+    <tbody>{% for tk in recent_tokens %}
+      <tr><td><strong>#{{ tk.token_number }}</strong></td><td>{{ tk.patient_name }}</td>
+          <td>{{ tk.doctor_name }}</td><td>{{ tk.department }}</td>
+          <td><span class="badge badge-{{ tk.status }}">{{ tk.status|title }}</span></td>
+          <td style="font-size:.8rem;color:var(--muted);">{{ tk.created_ist }}</td>
+      </tr>
+    {% endfor %}</tbody></table></div>
+  </div>
+</div>{% endblock %}

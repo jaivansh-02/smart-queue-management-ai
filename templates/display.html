@@ -1,0 +1,55 @@
+{% extends "base.html" %}{% block title %}Live Display{% endblock %}
+{% set lang = session.get('lang','en') %}
+{% block nav_links %}<a href="/" style="color:rgba(255,255,255,.6);">← {{ t('nav_home', lang) }}</a>{% endblock %}
+{% block mobile_nav %}<a href="/" onclick="closeMenu()">← {{ t('nav_home', lang) }}</a>{% endblock %}
+{% block content %}
+<div class="dp" style="margin-top:calc(-1 * var(--nav-h));padding-top:var(--nav-h);">
+  <div class="dph">
+    <div><div class="hn">🏥 SmartQueue Hospital</div><div style="font-size:.7rem;color:rgba(126,200,227,.6);margin-top:2px;">{{ t('live_display', lang) }}</div></div>
+    <div><div class="dtime" id="clock">--:--:--</div><div style="font-size:.68rem;color:rgba(255,255,255,.4);text-align:right;margin-top:2px;"><span class="pdot"></span>Auto-refresh 5s</div></div>
+  </div>
+  <div class="ftabs">
+    <button class="ftab active" onclick="filter(this,'')">{{ t('all_departments', lang) }}</button>
+    {% for d in departments %}<button class="ftab" onclick="filter(this,'{{ d }}')">{{ d }}</button>{% endfor %}
+  </div>
+  <div class="dpb"><div class="dpg" id="grid"><div style="color:rgba(255,255,255,.4);padding:2rem;grid-column:1/-1;text-align:center;">Loading…</div></div></div>
+  <div class="dpfoot">SmartQueue Hospital &nbsp;|&nbsp; Last updated: <span id="upd">--</span></div>
+</div>
+{% block scripts %}
+<script>
+var TRANS = {
+  now_serving: "{{ t('now_serving', lang) }}",
+  next_token:  "{{ t('next_token',  lang) }}",
+  waiting:     "{{ t('patients_waiting', lang) }}"
+};
+var cur='';
+function filter(el,dept){cur=dept;document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));el.classList.add('active');load();}
+function load(){fetch('/api/display_data'+(cur?'?dept='+encodeURIComponent(cur):''))
+  .then(r=>r.json()).then(d=>{render(d.doctors);document.getElementById('upd').textContent=d.timestamp;}).catch(()=>{});}
+function render(docs){
+  var g=document.getElementById('grid');
+  if(!docs||!docs.length){g.innerHTML='<div style="color:rgba(255,255,255,.4);padding:4rem;grid-column:1/-1;text-align:center;">No doctors found.</div>';return;}
+  g.innerHTML=docs.map(d=>{
+    var cn=d.current_token||'—',nn=d.next_token||'—';
+    var cc=d.current_token?'':' em',nc=d.next_token?'':' em';
+    var pp=d.current_patient?'<div style="font-size:.68rem;opacity:.7;margin-top:3px;">'+d.current_patient+'</div>':'';
+    return '<div class="dpc"><div class="dtag">'+d.department+'</div><div class="dname">'+d.doctor_name+'</div>'+
+      '<div class="trow"><div class="tbox cur"><div class="tlbl">'+TRANS.now_serving+'</div><div class="tnum'+cc+'">'+cn+'</div>'+pp+'</div>'+
+      '<div class="tbox nxt"><div class="tlbl">'+TRANS.next_token+'</div><div class="tnum'+nc+'">'+nn+'</div></div></div>'+
+      '<div class="wi"><span>⏳ '+d.waiting_count+' '+TRANS.waiting+'</span><span>~'+(d.waiting_count*5)+'m</span></div></div>';
+  }).join('');
+}
+function clock(){
+  /* Show IST (UTC+5:30) regardless of browser or server timezone */
+  var n = new Date();
+  var istOffset = 5 * 60 + 30; /* IST is UTC+5:30 in minutes */
+  var utcMs = n.getTime() + (n.getTimezoneOffset() * 60000);
+  var ist = new Date(utcMs + (istOffset * 60000));
+  document.getElementById('clock').textContent =
+    String(ist.getHours()).padStart(2,'0') + ':' +
+    String(ist.getMinutes()).padStart(2,'0') + ':' +
+    String(ist.getSeconds()).padStart(2,'0') + ' IST';
+}
+load();clock();setInterval(load,5000);setInterval(clock,1000);
+</script>{% endblock %}
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% block title %}Server Error{% endblock %}
+{% block content %}
+<div class="error-page">
+  <div class="code">500</div>
+  <h2>Something Went Wrong</h2>
+  <p>An internal server error occurred.</p>
+  <a href="/" class="btn btn-primary" style="width:auto;padding:12px 28px;margin-bottom:1rem;">🏠 Go Home</a>
+
+  {% if error %}
+  <div style="max-width:700px;width:100%;margin-top:2rem;text-align:left;">
+    <div class="alert alert-error">
+      <div><strong>Error:</strong> {{ error }}</div>
+    </div>
+    <div style="background:#1a2535;color:#e2eaf2;border-radius:10px;padding:1.2rem;font-family:monospace;font-size:.78rem;line-height:1.7;overflow-x:auto;white-space:pre-wrap;">{{ trace }}</div>
+    <p style="font-size:.8rem;color:var(--muted);margin-top:.8rem;">
+      💡 Most likely fix: <strong>delete hospital.db</strong> and restart the app.
+    </p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

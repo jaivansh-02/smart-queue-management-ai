@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="{{ session.get('lang','en') }}" dir="{{ 'rtl' if session.get('lang','en') in RTL_LANGUAGES else 'ltr' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0c7abf">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>{% block title %}SmartQueue{% endblock %} – Hospital Queue AI</title>
+  <script>
+    /* Apply theme before paint to prevent flash — default is light */
+    (function(){
+      var t = localStorage.getItem('sq_theme') || 'light';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}">
+  <script src="{{ url_for('static',filename='sq_voice.js') }}" defer></script>
+  <script>
+    window.SQ_USER_NAME = "{{ session.get('name', session.get('doctor_name', session.get('patient_name', ''))) }}";
+  </script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<!-- ── Animated Medical Background ─────────────────────────────────────────── -->
+<div class="med-bg" aria-hidden="true" id="medBg"></div>
+
+<nav id="mainNav">
+  <a href="/" class="nav-brand">
+    <div class="brand-icon">🏥</div>
+    SmartQueue <span style="color:var(--ai);margin-left:4px;font-size:.78rem;font-weight:700;">+AI</span>
+  </a>
+  <div class="nav-links">
+    {% block nav_links %}
+    <a href="/display">📺 {{ t('nav_display', session.get('lang','en')) }}</a>
+    <a href="/patient/login">{{ t('nav_patient', session.get('lang','en')) }}</a>
+    <a href="/doctor/login" class="btn-nav">{{ t('nav_doctor', session.get('lang','en')) }}</a>
+    <a href="/admin/login" class="btn-dark" style="padding:6px 13px;">⚙ {{ t('nav_admin', session.get('lang','en')) }}</a>
+    {% endblock %}
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;">
+    <div style="position:relative;" id="lang-wrap">
+      <button onclick="toggleLangMenu(event)" class="theme-toggle" id="lang-btn">
+        🌐 {{ LANGUAGES[session.get('lang','en')] }}
+      </button>
+      <div id="lang-menu" style="display:none;position:absolute;right:0;top:calc(100% + 6px);background:var(--sur);border:1.5px solid var(--bdr);border-radius:12px;box-shadow:var(--shl);z-index:300;min-width:160px;overflow:hidden;">
+        {% for code, name in LANGUAGES.items() %}
+        <a href="/set_lang/{{ code }}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 15px;text-decoration:none;color:var(--txt);font-size:.85rem;font-weight:500;border-bottom:1px solid var(--bdr);transition:background .15s;" onmouseover="this.style.background='var(--sur2)'" onmouseout="this.style.background=''">
+          {{ name }}{% if session.get('lang','en') == code %}<span style="color:var(--primary);">✓</span>{% endif %}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙 Dark</button>
+    <button id="sq-settings-btn" title="Settings & Feedback" aria-label="Settings">⚙️</button>
+    <button class="hamburger" onclick="toggleMenu()" id="hbtn" aria-label="Menu">☰</button>
+  </div>
+</nav>
+
+<div class="mobile-nav" id="mnav">
+  {% block mobile_nav %}
+  <a href="/" onclick="closeMenu()">🏠 {{ t('nav_home', session.get('lang','en')) }}</a>
+  <a href="/display" onclick="closeMenu()">📺 {{ t('nav_display', session.get('lang','en')) }}</a>
+  <a href="/patient/login" onclick="closeMenu()">🧑‍⚕️ {{ t('patient_login', session.get('lang','en')) }}</a>
+  <a href="/patient/register" onclick="closeMenu()">✏️ {{ t('patient_register', session.get('lang','en')) }}</a>
+  <a href="/doctor/login" onclick="closeMenu()" class="btn-nav">👨‍⚕️ {{ t('doctor_portal', session.get('lang','en')) }}</a>
+  <a href="/admin/login" onclick="closeMenu()">⚙ {{ t('nav_admin', session.get('lang','en')) }}</a>
+  {% endblock %}
+</div>
+
+<div id="overlay" onclick="closeMenu()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);z-index:198;"></div>
+
+
+<!-- ── Settings Panel ─────────────────────────────────────────────────────── -->
+<div id="sq-settings-panel" role="dialog" aria-label="Settings">
+  <div class="sq-settings-header">⚙️ Settings &amp; Feedback</div>
+  <div class="sq-settings-body">
+
+    <!-- Voice toggle -->
+    <div class="sq-setting-row">
+      <span>🔊 Voice Assistant</span>
+      <label class="sq-switch">
+        <input type="checkbox" id="sq-voice-toggle" checked onchange="sqToggleVoice(this)">
+        <span class="sq-slider"></span>
+      </label>
+    </div>
+
+    <!-- Theme (mirrors existing toggle) -->
+    <div class="sq-setting-row">
+      <span>🌙 Dark Mode</span>
+      <label class="sq-switch">
+        <input type="checkbox" id="sq-theme-toggle-s" onchange="applyTheme(this.checked?'dark':'light')">
+        <span class="sq-slider"></span>
+      </label>
+    </div>
+
+    <!-- Feedback -->
+    <div style="margin-top:.9rem;">
+      <div style="font-size:.82rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:.6rem;">💬 Rate Your Experience</div>
+      <form id="sq-settings-feedback-form">
+        <div class="sq-star-rating" id="sq-settings-stars" data-rating="0" style="margin-bottom:.7rem;">
+          <span class="sq-star" data-v="1">★</span>
+          <span class="sq-star" data-v="2">★</span>
+          <span class="sq-star" data-v="3">★</span>
+          <span class="sq-star" data-v="4">★</span>
+          <span class="sq-star" data-v="5">★</span>
+        </div>
+        <textarea id="sq-settings-comment" placeholder="Share your feedback…"
+                  style="width:100%;resize:vertical;min-height:70px;font-size:.84rem;"></textarea>
+        <div style="display:flex;gap:.6rem;margin-top:.6rem;">
+          <button type="submit" class="btn btn-primary" style="flex:1;padding:9px;">Submit Feedback</button>
+        </div>
+        <div id="sq-feedback-sent">✅ Thank you for your feedback!</div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ── Voice Toast ────────────────────────────────────────────────────────── -->
+<div id="sq-voice-toast">🎤 Listening…</div>
+
+{% block content %}{% endblock %}
+
+<script>
+/* ── Mobile Menu ────────────────────────────────────────────────────────────── */
+function toggleMenu(){
+  var m=document.getElementById('mnav'),o=document.getElementById('overlay'),b=document.getElementById('hbtn');
+  var open=m.classList.toggle('open');
+  o.style.display=open?'block':'none';
+  b.textContent=open?'✕':'☰';
+}
+function closeMenu(){
+  document.getElementById('mnav').classList.remove('open');
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('hbtn').textContent='☰';
+}
+
+/* ── Lang Menu ──────────────────────────────────────────────────────────────── */
+function toggleLangMenu(e){
+  if(e) e.stopPropagation();
+  var m=document.getElementById('lang-menu');
+  m.style.display=(m.style.display==='block')?'none':'block';
+}
+document.addEventListener('click',function(e){
+  var w=document.getElementById('lang-wrap'), m=document.getElementById('lang-menu');
+  if(m && w && !w.contains(e.target)) m.style.display='none';
+});
+
+/* ── Theme Toggle — delegates to sq_voice.js applyTheme/toggleTheme ─────────── */
+/* applyTheme() and toggleTheme() are defined in sq_voice.js (loaded via defer).
+   This stub runs inline so the nav button onclick works before defer fires.    */
+function toggleTheme(){
+  var cur = document.documentElement.getAttribute('data-theme') || 'light';
+  var next = (cur === 'dark') ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('sq_theme', next);
+  var btn = document.getElementById('themeBtn');
+  if(btn) btn.textContent = (next === 'dark') ? '☀️ Light' : '🌙 Dark';
+  var ts = document.getElementById('sq-theme-toggle-s');
+  if(ts) ts.checked = (next === 'dark');
+}
+function applyTheme(theme){
+  var t = (theme === 'dark') ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('sq_theme', t);
+  var btn = document.getElementById('themeBtn');
+  if(btn) btn.textContent = (t === 'dark') ? '☀️ Light' : '🌙 Dark';
+  var ts = document.getElementById('sq-theme-toggle-s');
+  if(ts) ts.checked = (t === 'dark');
+}
+(function(){
+  var saved = localStorage.getItem('sq_theme') || 'light';
+  document.addEventListener('DOMContentLoaded', function(){
+    applyTheme(saved);
+  });
+})();
+
+/* ── Navbar scroll shadow ───────────────────────────────────────────────────── */
+window.addEventListener('scroll', function(){
+  var nav=document.getElementById('mainNav');
+  if(nav) nav.classList.toggle('scrolled', window.scrollY > 10);
+}, {passive: true});
+
+/* ── Floating medical background icons ──────────────────────────────────────── */
+(function(){
+  var bg = document.getElementById('medBg');
+  if(!bg) return;
+  var icons = ['➕','️🩺','🧬','🧠','🩹','🏥','💊','⚕️'];
+  var count = 10 + Math.floor(Math.random() * 3); // 10-12 icons
+  
+  for(var i = 0; i < count; i++){
+    var el = document.createElement('span');
+    el.className   = 'med-icon';
+    el.textContent = icons[i % icons.length];
+    el.setAttribute('aria-hidden','true');
+    
+    // Random position across FULL background, but avoid exact edges
+    var top = 5 + Math.random() * 90;
+    var left = 5 + Math.random() * 90;
+    
+    el.style.top         = top  + '%';
+    el.style.left        = left + '%';
+    el.style.fontSize    = (1.4 + Math.random() * 1.2).toFixed(2) + 'rem';
+    
+    // Slow floating animation with random delay and duration
+    var duration = (15 + Math.random() * 10).toFixed(2) + 's';
+    var delay    = (Math.random() * -20).toFixed(2) + 's';
+    el.style.animation = 'floatRandom ' + duration + ' linear infinite';
+    el.style.animationDelay = delay;
+    
+    bg.appendChild(el);
+  }
+})();
+
+
+/* ── Settings panel theme checkbox is synced by applyTheme() above ────────── */
+
+/* ── Smooth page transitions ────────────────────────────────────────────────── */
+document.addEventListener('click', function(e){
+  var a = e.target.closest('a[href]');
+  if(!a) return;
+  var href = a.getAttribute('href');
+  if(!href || href.startsWith('#') || href.startsWith('javascript') ||
+     href.startsWith('mailto') || a.target === '_blank') return;
+  if(href.startsWith('/api/') || href.startsWith('/set_lang/')) return;
+  if(a.hostname && a.hostname !== location.hostname) return;
+  e.preventDefault();
+  document.body.style.opacity = '0';
+  document.body.style.transition = 'opacity .18s ease';
+  setTimeout(function(){ location.href = href; }, 160);
+});
+window.addEventListener('pageshow', function(){
+  document.body.style.opacity = '1';
+  document.body.style.transition = 'opacity .3s ease';
+});
+
+/* ── Staggered card reveal on scroll ───────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', function(){
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(entry, i){
+      if(entry.isIntersecting){
+        entry.target.style.animationDelay = (i * 0.04) + 's';
+        entry.target.classList.add('sq-visible');
+        io.unobserve(entry.target);
+      }
+    });
+  }, {threshold: 0.06, rootMargin: '0px 0px -20px 0px'});
+
+  document.querySelectorAll('.card, .stat-card, .quick-stat, .role-card').forEach(function(el){
+    io.observe(el);
+  });
+
+  /* Button ripple */
+  document.addEventListener('click', function(e){
+    var btn = e.target.closest('.btn');
+    if(!btn) return;
+    var r   = document.createElement('span');
+    var d   = Math.max(btn.offsetWidth, btn.offsetHeight);
+    var rect= btn.getBoundingClientRect();
+    r.style.cssText = 'position:absolute;width:'+d+'px;height:'+d+'px;border-radius:50%;background:rgba(255,255,255,.22);transform:translate(-50%,-50%) scale(0);animation:ripple .5s ease-out forwards;left:'+(e.clientX-rect.left)+'px;top:'+(e.clientY-rect.top)+'px;pointer-events:none;';
+    if(getComputedStyle(btn).position === 'static') btn.style.position = 'relative';
+    btn.appendChild(r);
+    setTimeout(function(){ if(r.parentNode) r.parentNode.removeChild(r); }, 520);
+  });
+});
+</script>
+<style>
+@keyframes ripple { to { transform: translate(-50%,-50%) scale(2.5); opacity: 0; } }
+.ecg-line { color: var(--primary); }
+</style>
+{% block scripts %}{% endblock %}
+<!-- ECG Line -->
+<div class="ecg-line" aria-hidden="true">
+  <svg viewBox="0 0 1440 60" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+    <polyline fill="none" stroke="currentColor" stroke-width="1.5"
+      points="0,30 80,30 100,30 115,6 125,54 135,6 145,54 155,30 200,30
+              320,30 335,30 350,6 360,54 370,6 380,54 390,30 440,30
+              560,30 580,30 595,6 605,54 615,6 625,54 635,30 720,30
+              800,30 820,30 835,6 845,54 855,6 865,54 875,30 960,30
+              1080,30 1095,30 1110,6 1120,54 1130,6 1140,54 1150,30 1200,30
+              1320,30 1335,6 1345,54 1355,6 1365,54 1375,30 1440,30"/>
+  </svg>
+</div>
+<footer class="footer">
+
+  <div class="footer-container">
+
+    <!-- Hospital Info -->
+    <div class="footer-section">
+      <h3>SmartQueue Hospital</h3>
+      <p>Efficient Care, Smarter Queue</p>
+      <p>Jaipur, Rajasthan</p>
+    </div>
+
+    <!-- Contact -->
+    <div class="footer-section">
+      <h4>Contact</h4>
+      <p>📞 +91 9352578985</p>
+      <p>📞 +91 6367885697</p>
+      <p>📧 support: smartqueuemanagement@gmail.com</p>
+      <p>🚑 Emergency: 108</p>
+    </div>
+
+    <!-- Services -->
+    <div class="footer-section">
+      <h4>Services</h4>
+      <p>OPD Queue Management</p>
+      <p>Live Token Display</p>
+      <p>AI Symptom Checker</p>
+      <p>Chatbot Support</p>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="footer-section">
+      <h4>Quick Links</h4>
+      <p><a href="/">Home</a></p>
+      <p><a href="/patient/dashboard">Patient Portal</a></p>
+      <p><a href="/display">Live Display</a></p>
+    </div>
+
+    <!-- Working Hours -->
+    <div class="footer-section">
+      <h4>Working Hours</h4>
+      <p>Mon - Sat: 9 AM – 9 PM</p>
+      <p>Emergency: 24/7</p>
+    </div>
+
+  </div>
+
+  <!-- Bottom -->
+  <div class="footer-bottom">
+    © 2026 SmartQueue Hospital | All rights reserved
+  </div>
+
+</footer>
+</body>
+</html>

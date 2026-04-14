@@ -1,0 +1,87 @@
+{% extends "base.html" %}{% block title %}Login with OTP{% endblock %}
+{% block nav_links %}<a href="/patient/login">Login</a><a href="/patient/register" class="btn-nav">Register</a>{% endblock %}
+{% block mobile_nav %}<a href="/patient/login" onclick="closeMenu()">Login</a><a href="/patient/register" onclick="closeMenu()" class="btn-nav">Register</a>{% endblock %}
+{% block content %}
+<div class="page-center">
+  <div class="auth-card">
+
+    {% with m=get_flashed_messages(with_categories=true) %}{% for c,msg in m %}
+    <div class="alert alert-{{ 'success' if c=='success' else ('info' if c=='info' else 'error') }}">
+      {{ '✅' if c=='success' else ('ℹ️' if c=='info' else '⚠️') }} {{ msg }}
+    </div>
+    {% endfor %}{% endwith %}
+
+    <!-- ── STEP 1: MOBILE NUMBER ── -->
+    {% if step == 'mobile' %}
+    <div class="ch">
+      <div class="ic ic-ai">📱</div>
+      <h2>{{ t('login_with_otp', lang) }}</h2>
+      <p class="sub">{{ t('mobile_otp_sub', lang) }}</p>
+    </div>
+    <form method="POST">
+      <input type="hidden" name="step" value="mobile">
+      <div class="fg">
+        <label>{{ t('mobile_number', lang) }}</label>
+        <div style="display:flex;gap:8px;">
+          <div style="display:flex;align-items:center;padding:10px 13px;background:var(--sur2);border:1.5px solid var(--bdr);border-radius:var(--rs);font-weight:600;color:var(--muted);font-size:.93rem;white-space:nowrap;">
+            🇮🇳 +91
+          </div>
+          <input type="tel" name="phone" placeholder="98XXXXXXXX"
+                 maxlength="10" inputmode="numeric" pattern="[0-9]{10}"
+                 required autofocus autocomplete="tel"
+                 style="flex:1;">
+        </div>
+        <small style="color:var(--muted);font-size:.78rem;margin-top:5px;display:block;">
+          📧 {{ t('mobile_otp_note', lang) }}
+        </small>
+      </div>
+      <button type="submit" class="btn btn-ai" style="width:100%;padding:12px;">
+        📱 {{ t('send_mobile_otp', lang) }}
+      </button>
+    </form>
+
+    <!-- Divider -->
+    <div style="display:flex;align-items:center;gap:10px;margin:18px 0;">
+      <div style="flex:1;height:1px;background:var(--bdr);"></div>
+      <span style="font-size:.82rem;color:var(--muted);font-weight:600;">{{ t('or_divider', lang) }}</span>
+      <div style="flex:1;height:1px;background:var(--bdr);"></div>
+    </div>
+    <a href="/patient/login" class="btn btn-outline" style="width:100%;justify-content:center;">
+      ✉️ {{ t('login_with_email', lang) }}
+    </a>
+    {% endif %}
+
+    <!-- ── STEP 2: OTP VERIFY ── -->
+    {% if step == 'otp' %}
+    <div class="ch">
+      <div class="ic ic-ai">🔢</div>
+      <h2>{{ t('enter_otp', lang) }}</h2>
+      <p class="sub">{{ t('check_email', lang) }} — OTP sent for +91 {{ phone }}</p>
+    </div>
+    <div class="alert alert-ai">
+      📬 {{ t('otp_sent_msg', lang) }}<br>
+      <small style="opacity:.8;">{{ t('otp_expires_in', lang) }}</small>
+    </div>
+    <form method="POST">
+      <input type="hidden" name="step" value="otp">
+      <input type="hidden" name="phone" value="{{ phone }}">
+      <div class="fg">
+        <label>{{ t('otp_placeholder', lang) }}</label>
+        <input type="text" name="otp" placeholder="● ● ● ● ● ●"
+               maxlength="6" inputmode="numeric" pattern="[0-9]{6}"
+               style="font-size:1.5rem;letter-spacing:8px;text-align:center;font-weight:700;"
+               autofocus autocomplete="one-time-code">
+      </div>
+      <button type="submit" class="btn btn-ai" style="width:100%;padding:12px;">{{ t('verify_otp', lang) }}</button>
+    </form>
+    <form method="POST" action="/patient/resend_otp" style="margin-top:1rem;">
+      <input type="hidden" name="purpose" value="mobile_login">
+      <button type="submit" class="btn btn-outline btn-sm" style="width:100%;">🔄 {{ t('otp_resend', lang) }}</button>
+    </form>
+    {% endif %}
+
+    <div class="ff" style="margin-top:1.3rem;">
+      <a href="/patient/login">← {{ t('back_to_login', lang) }}</a>
+    </div>
+  </div>
+</div>{% endblock %}

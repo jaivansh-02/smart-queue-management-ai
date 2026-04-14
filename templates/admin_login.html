@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block title %}Admin Login{% endblock %}
+{% block nav_links %}<a href="/patient/login">Patient</a><a href="/doctor/login" class="btn-nav">Doctor</a>{% endblock %}
+{% block mobile_nav %}<a href="/" onclick="closeMenu()">Home</a><a href="/patient/login" onclick="closeMenu()">Patient</a><a href="/doctor/login" onclick="closeMenu()" class="btn-nav">Doctor</a>{% endblock %}
+{% block content %}
+<div class="page-center"><div class="auth-card">
+  <div class="ch"><div class="ic ic-dark">⚙️</div><h2>Admin Login</h2><p class="sub">Authorized personnel only</p></div>
+  {% with m=get_flashed_messages(with_categories=true) %}{% for c,msg in m %}
+  <div class="alert alert-{{ 'success' if c=='success' else 'error' }}">{{ '✅' if c=='success' else '⚠️' }} {{ msg }}</div>
+  {% endfor %}{% endwith %}
+  <form method="POST">
+    <div class="fg"><label>Username</label><input type="text" name="username" placeholder="Admin username" required autocomplete="username"></div>
+    <div class="fg"><label>Password</label><input type="password" name="password" required autocomplete="current-password"></div>
+    <button type="submit" class="btn btn-primary" style="background:linear-gradient(135deg,#2c3e50,#3d5a73);">Login to Admin →</button>
+  </form>
+  <div class="ff" style="margin-top:1.2rem;font-size:.78rem;color:var(--muted);">
+    🔒 This area is restricted to hospital administrators only.
+  </div>
+</div></div>{% endblock %}

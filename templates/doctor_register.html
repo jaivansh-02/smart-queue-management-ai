@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}Doctor Register{% endblock %}
+{% set lang = session.get('lang','en') %}
+{% block nav_links %}<a href="/patient/login">{{ t('nav_patient', lang) }}</a><a href="/doctor/login" class="btn-nav">{{ t('nav_login', lang) }}</a>{% endblock %}
+{% block mobile_nav %}<a href="/" onclick="closeMenu()">{{ t('nav_home', lang) }}</a><a href="/doctor/login" onclick="closeMenu()" class="btn-nav">{{ t('nav_login', lang) }}</a>{% endblock %}
+{% block content %}
+<div class="page-center"><div class="auth-card">
+    <div class="ch"><div class="ic ic-orange">👨‍⚕️</div><h2>{{ t('doctor_portal', lang) }}</h2><p class="sub">{{ t('create_account', lang) }}</p></div>
+    {% with m=get_flashed_messages(with_categories=true) %}{% for c,msg in m %}<div class="alert alert-{{ 'success' if c=='success' else 'error' }}">{{ '✅' if c=='success' else '⚠️' }} {{ msg }}</div>{% endfor %}{% endwith %}
+    <form method="POST">
+      <div class="fg"><label>{{ t('full_name', lang) }} *</label><input type="text" name="name" placeholder="Dr. Priya Mehta" required></div>
+      <div class="fg"><label>{{ t('email', lang) }} *</label><input type="email" name="email" placeholder="doctor@hospital.com" required autocomplete="email"></div>
+      <div class="fg"><label>{{ t('password', lang) }} *</label><input type="password" name="password" required autocomplete="new-password"></div>
+      <div class="fg"><label>{{ t('department', lang) }} *</label><select name="department" required><option value="">{{ t('select_dept', lang) }}</option>{% for d in departments %}<option>{{ d }}</option>{% endfor %}</select></div>
+      <button type="submit" class="btn btn-primary" style="background:linear-gradient(135deg,var(--accent),var(--al));">{{ t('create_account', lang) }}</button>
+    </form>
+    <div class="ff">{{ t('already_account', lang) }} <a href="/doctor/login">{{ t('login_here', lang) }}</a></div>
+</div></div>{% endblock %}

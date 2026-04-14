@@ -1,0 +1,102 @@
+{% extends "base.html" %}{% block title %}AI Symptom Checker{% endblock %}
+{% set lang = session.get('lang','en') %}
+{% block nav_links %}<a href="/patient/dashboard">{{ t('patient_dashboard', lang) }}</a><a href="/patient/chat" class="btn-ai">💬 {{ t('medibot_chat', lang) }}</a>{% endblock %}
+{% block mobile_nav %}<a href="/patient/dashboard" onclick="closeMenu()">{{ t('patient_dashboard', lang) }}</a><a href="/patient/chat" onclick="closeMenu()">{{ t('medibot_chat', lang) }}</a>{% endblock %}
+{% block content %}
+<div class="ai-page">
+  <div style="margin-bottom:1.6rem;">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:.4rem;">
+      <h1>🔬 {{ t('ai_symptom_checker', lang) }}</h1><span class="ai-badge">✨ SmartQueue AI</span>
+    </div>
+    <p style="color:var(--muted);font-size:.92rem;">{{ t('describe_symptoms', lang) }}</p>
+  </div>
+  <div class="alert alert-ai">⚠️ {{ t('ai_disclaimer', lang) }}</div>
+  <div class="card">
+    <div class="card-title ai-t">📝 {{ t('describe_symptoms', lang) }}</div>
+    <div class="fg" style="position:relative;">
+      <textarea id="sym" class="sym-input" placeholder="Example: I have chest pain and shortness of breath… or click 🎤 to speak" rows="4"></textarea>
+      <!-- mic button injected by sq_voice.js into .fg for symptom textarea -->
+    </div>
+    <div style="display:flex;gap:.7rem;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-ai" onclick="check()">🔬 {{ t('analyse_ai', lang) }}</button>
+      <button class="btn-mic" id="sym-mic-btn" title="Speak your symptoms" style="width:42px;height:42px;font-size:1.1rem;">🎤</button>
+      <button class="btn btn-outline" onclick="clearAll()">✕ {{ t('reset', lang) }}</button>
+    </div>
+    <div style="margin-top:1.1rem;">
+      <p style="font-size:.76rem;color:var(--muted);margin-bottom:.5rem;">Quick tags:</p>
+      <div style="display:flex;flex-wrap:wrap;gap:.4rem;">
+        {% for tg in ['Chest pain','Headache','Skin rash','Joint pain','Fever','Back pain','Numbness','Palpitations','Hair loss','Dizziness','Stomach pain','Blurred vision'] %}
+        <button class="dept-btn" style="padding:4px 11px;font-size:.78rem;" onclick="addTag('{{ tg }}')">{{ tg }}</button>{% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="loader" id="loader"><div class="spinner"></div><p style="color:var(--ai);font-weight:600;font-size:.9rem;">AI is analysing…</p></div>
+  <div class="ai-result" id="result">
+    <div style="font-size:.69rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ai);margin-bottom:.8rem;">🤖 {{ t('ai_recommendation', lang) }}</div>
+    <div class="dept-rec" id="rdept"></div>
+    <div id="rurg"></div>
+    <div class="reason-txt" id="rreason"></div>
+    <div class="tips-box">💡 <strong>While you wait:</strong><br><span id="rtips"></span></div>
+    <div id="rdocs" style="display:none;">
+      <p style="font-size:.85rem;font-weight:600;margin-bottom:.7rem;">{{ t('select_doctor', lang) }}:</p>
+      <div id="dbtn" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem;"></div>
+      <form method="POST" action="/patient/generate_token"><input type="hidden" name="doctor_id" id="selid">
+        <button type="submit" class="btn btn-ai" id="cfmbtn" style="display:none;">🎫 {{ t('confirm_token', lang) }}</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% block scripts %}<script>
+var SYMPTOM_LANG = '{{ lang }}';
+
+/* Wire mic button for symptoms */
+document.addEventListener('DOMContentLoaded', function(){
+  var symMicBtn = document.getElementById('sym-mic-btn');
+  var symInp    = document.getElementById('sym');
+  if (symMicBtn && symInp) {
+    symMicBtn.addEventListener('click', function(){
+      if (typeof _sqRecognizing !== 'undefined' && _sqRecognizing) {
+        sqStopListening(); symMicBtn.classList.remove('listening'); symMicBtn.innerHTML='🎤'; return;
+      }
+      symMicBtn.classList.add('listening'); symMicBtn.innerHTML='🔴';
+      sqStartListening(
+        function(text){ symMicBtn.classList.remove('listening'); symMicBtn.innerHTML='🎤'; symInp.value = (symInp.value ? symInp.value + ', ' : '') + text; },
+        function(err){ symMicBtn.classList.remove('listening'); symMicBtn.innerHTML='🎤'; console.warn('Mic error:', err); },
+        SYMPTOM_LANG
+      );
+    });
+  }
+});
+
+function check(){
+  var s=document.getElementById('sym').value.trim();
+  if(!s){alert('{{ t("describe_symptoms", lang) }}');return;}
+  document.getElementById('loader').style.display='block';
+  document.getElementById('result').style.display='none';
+  fetch('/api/ai/check_symptoms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symptoms:s})})
+  .then(r=>r.json()).then(d=>{
+    document.getElementById('loader').style.display='none';
+    document.getElementById('rdept').textContent='🏥 '+d.department;
+    document.getElementById('rreason').textContent=d.reason;
+    document.getElementById('rtips').textContent=d.tips;
+    var u=(d.urgency||'Medium').toLowerCase();
+    document.getElementById('rurg').innerHTML='<span class="urgency-badge urg-'+(u==='high'?'high':u==='low'?'low':'med')+'\">'+(u==='high'?'🔴':u==='low'?'🟢':'🟡')+' Urgency: '+d.urgency+'</span>';
+    var ds=document.getElementById('rdocs'),db=document.getElementById('dbtn'); db.innerHTML='';
+    if(d.doctors&&d.doctors.length){
+      ds.style.display='block';
+      d.doctors.forEach(doc=>{var b=document.createElement('button');b.type='button';b.className='dept-btn';b.textContent=doc.name;
+        b.onclick=()=>{document.getElementById('selid').value=doc.id;document.getElementById('cfmbtn').style.display='inline-flex';document.querySelectorAll('#dbtn .dept-btn').forEach(x=>x.classList.toggle('active',x===b));};
+        db.appendChild(b);});
+    }
+    document.getElementById('result').style.display='block';
+    /* Voice: announce recommendation */
+    var dept = d.department || '';
+    var reason = d.reason || '';
+    if (dept) speak('Based on your symptoms, we recommend the ' + dept + ' department. ' + reason, SYMPTOM_LANG);
+  }).catch(e=>{document.getElementById('loader').style.display='none';alert('Error: '+e.message);});
+}
+function addTag(t){var i=document.getElementById('sym');i.value=i.value?(i.value+', '+t):t;i.focus();}
+function clearAll(){document.getElementById('sym').value='';document.getElementById('result').style.display='none';document.getElementById('loader').style.display='none';}
+document.getElementById('sym').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();check();}});
+</script>{% endblock %}
+{% endblock %}

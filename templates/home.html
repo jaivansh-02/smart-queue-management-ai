@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% set lang = session.get('lang','en') %}
+{% block content %}
+<section class="hero">
+  <div class="hero-badge">🤖 {{ t('home_badge', lang) }}</div>
+  <h1>{{ t('home_title1', lang) }}<br><span>{{ t('home_title2', lang) }}</span></h1>
+  <p>{{ t('home_subtitle', lang) }}</p>
+  <div class="hero-cards">
+    <!-- Row 1 -->
+    <a href="/patient/register" class="role-card patient"><div class="ic">🧑‍⚕️</div><h3>{{ t('patient_portal', lang) }}</h3><p>{{ t('nav_register', lang) }}, {{ t('get_token', lang) }}</p></a>
+    <a href="/doctor/login" class="role-card doctor"><div class="ic">👨‍⚕️</div><h3>{{ t('doctor_portal', lang) }}</h3><p>{{ t('doctor_dashboard', lang) }}</p></a>
+    <a href="/admin/login" class="role-card admin"><div class="ic">⚙️</div><h3>{{ t('nav_admin', lang) }}</h3><p>{{ t('available_doctors', lang) }}</p></a>
+    
+    <!-- Row 2 -->
+    <a href="/patient/symptom_checker" class="role-card symptom ai-card"><div class="ic">🔬</div><h3>{{ t('ai_symptom_checker', lang) }}</h3><span class="ai-badge">✨ SmartQueue AI</span><p>{{ t('symptoms_ai_desc', lang) }}</p></a>
+    <a href="/patient/chat" class="role-card chatbot ai-card"><div class="ic">💬</div><h3>{{ t('medibot_chat', lang) }}</h3><span class="ai-badge">✨ SmartQueue AI</span><p>{{ t('medibot_desc', lang) }}</p></a>
+    <a href="/display" class="role-card display"><div class="ic">📺</div><h3>{{ t('live_display', lang) }}</h3><p>{{ t('display_board', lang) }}</p></a>
+  </div>
+  <div class="stats-bar">
+    <div class="stat"><div class="num">{{ stats.doctors }}</div><div class="label">{{ t('nav_doctor', lang) }}s</div></div>
+    <div class="stat"><div class="num">{{ stats.patients }}</div><div class="label">{{ t('patient', lang) }}s</div></div>
+    <div class="stat"><div class="num">{{ stats.tokens }}</div><div class="label">{{ t('token_number', lang) }}s</div></div>
+    <div class="stat"><div class="num">5</div><div class="label">{{ t('department', lang) }}s</div></div>
+    <div class="stat"><div class="num">3</div><div class="label">AI {{ t('ai_feature', lang) }}s</div></div>
+  </div>
+</section>
+{% endblock %}
