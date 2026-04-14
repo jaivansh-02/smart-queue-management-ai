@@ -4,7 +4,7 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 from dotenv import load_dotenv
 import os
-
+import threading
 load_dotenv()
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 import sqlite3, hashlib, json, random, os, time, secrets, re, base64, threading
@@ -678,19 +678,28 @@ def verify_otp(identifier, otp_input, purpose):
     conn.commit(); conn.close()
     return 'ok', row['temp_data'] or ''
 
-def send_otp_email(to_email, otp, lang='en'):
-    subject = t('otp_email_subject', lang)
-    body = f"""
-        <h3 style='color:#e8734a;text-align:center;'>{t('otp_email_title',lang)}</h3>
-        <p>{t('otp_email_body',lang)}</p>
-        <div style='background:linear-gradient(135deg,#e8734a,#f0956d);border-radius:12px;padding:28px;text-align:center;margin:20px 0;'>
-          <div style='font-size:11px;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:3px;margin-bottom:10px;'>Your OTP Code</div>
-          <div style='font-size:54px;font-weight:900;letter-spacing:14px;color:white;font-family:monospace;'>{otp}</div>
-          <div style='font-size:12px;color:rgba(255,255,255,.7);margin-top:10px;'>⏱ Valid for 10 minutes only</div>
-        </div>
-        <p style='color:#d94040;font-weight:600;font-size:13px;'>⚠️ {t('otp_email_warning',lang)}</p>
-        <p style='color:#6b8290;font-size:12px;'>{t('otp_email_ignore',lang)}</p>"""
-    send_email(to_email, subject, body, lang)
+def send_otp_email(email, otp, lang):
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        import os
+
+        sender = os.getenv("GMAIL_ADDRESS")
+        password = os.getenv("GMAIL_APP_PASS")
+
+        msg = MIMEText(f"Your OTP is {otp}")
+        msg["Subject"] = "OTP Verification"
+        msg["From"] = sender
+        msg["To"] = email
+
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(sender, password)
+        server.sendmail(sender, email, msg.as_string())
+        server.quit()
+
+    except Exception as e:
+        print("SMTP FAILED:", e)
 
 # ─────────────────────────────── ERROR PAGES ─────────────────────────────────
 @app.errorhandler(404)
@@ -747,7 +756,7 @@ def resend_otp():
     conn=get_db(); pat=conn.execute('SELECT * FROM patients WHERE email=?',(fp_email,)).fetchone(); conn.close()
     if pat:
         otp=generate_otp(); save_otp(fp_email,otp,purpose)
-        send_otp_email(fp_email,otp,pat['lang'] or lang); flash(t('otp_sent_msg',lang),'success')
+        threading.Thread(target=send_otp_email, args=(...)).start(); flash(t('otp_sent_msg',lang),'success')
     return redirect(url_for('otp_login' if purpose=='mobile_login' else 'forgot_password'))
 
 @app.route('/patient/otp_login', methods=['GET','POST'])
@@ -808,8 +817,15 @@ def patient_register():
             'age':request.form.get('age','0') or '0','gender':request.form.get('gender',''),
             'phone':request.form.get('phone',''),'city':request.form.get('city',''),
             'blood_group':request.form.get('blood_group',''),'lang':lang})
-        otp=generate_otp(); save_otp(e,otp,'register',temp_data)
-        send_otp_email(e,otp,lang); session['reg_email']=e
+        otp = generate_otp()
+        save_otp(e, otp, 'register', temp_data)
+
+        try:
+            threading.Thread(target=send_otp_email, args=(e, otp, lang)).start()
+        except Exception as ex:
+           print("EMAIL ERROR:", ex)
+
+        session['reg_email'] = e
         flash(f'A 6-digit OTP has been sent to {e}. Check your inbox!','success')
         return redirect(url_for('verify_register_otp'))
     return render_template('patient_register.html')
@@ -823,7 +839,7 @@ def verify_register_otp():
         if action=='resend':
             conn=get_db(); row=conn.execute('SELECT temp_data FROM otp_store WHERE identifier=? AND purpose=? ORDER BY id DESC LIMIT 1',(email,'register')).fetchone(); conn.close()
             td=row['temp_data'] if row else '{}'; otp=generate_otp(); save_otp(email,otp,'register',td)
-            send_otp_email(email,otp,lang); flash('New OTP sent!','success')
+            threading.Thread(target=send_otp_email, args=(email, otp, lang)).start(); flash('New OTP sent!','success')
             return render_template('verify_otp.html',email=email,purpose='register',lang=lang)
         result,tdata=verify_otp(email,request.form.get('otp','').strip(),'register')
         if result=='expired': flash(t('otp_expired',lang),'error'); session.pop('reg_email',None); return redirect(url_for('patient_register'))
